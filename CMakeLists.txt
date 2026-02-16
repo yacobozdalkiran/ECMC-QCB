@@ -28,7 +28,7 @@ else()
     message(STATUS "Eigen3 found on the system.")
 endif()
 
-#===ECMC CB===
+#===ECMC QCB===
 add_executable(gauge_ecmc_cb src/bin/gauge_ecmc_cb.cpp
         src/gauge/GaugeField.cpp
         src/su3/utils.cpp
@@ -42,11 +42,8 @@ add_executable(gauge_ecmc_cb src/bin/gauge_ecmc_cb.cpp
         src/io/params.h
         src/io/io.cpp
 )
-
-
-# Configuration des options selon le compilateur détecté
+target_link_libraries(gauge_ecmc_cb PRIVATE MPI::MPI_CXX Eigen3::Eigen)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
-    # Options spécifiques à icpx (OneAPI)
     target_compile_options(gauge_ecmc_cb PRIVATE
             -O2
             #-xHost            # Remplace -march=native pour Intel
@@ -62,5 +59,34 @@ else()
     )
 endif()
 
-target_link_libraries(gauge_ecmc_cb PRIVATE MPI::MPI_CXX Eigen3::Eigen)
-
+#===HB QCB===
+add_executable(gauge_hb_cb src/bin/gauge_hb_cb.cpp
+        src/gauge/GaugeField.cpp
+        src/su3/utils.cpp
+        src/geometry/GeometryCB.cpp
+        src/geometry/types.h
+        src/mpi/MpiTopology.cpp
+        src/mpi/HalosExchange.cpp
+        src/observables/observables_mpi.cpp
+        src/mpi/Shift.cpp
+        src/heatbath/heatbath.cpp
+        src/heatbath/heatbath_mpi.cpp
+        src/io/params.h
+        src/io/io.cpp
+)
+target_link_libraries(gauge_hb_cb PRIVATE MPI::MPI_CXX Eigen3::Eigen)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
+    target_compile_options(gauge_hb_cb PRIVATE
+            -O2
+            #-xHost            # Remplace -march=native pour Intel
+            -fp-model precise
+            -Wall -Wextra
+    )
+else()
+    target_compile_options(gauge_hb_cb PRIVATE
+            -O2
+            #-ffast-math
+            #-march=native
+            -Wall -Wextra -Wpedantic
+    )
+endif()
