@@ -1,4 +1,5 @@
 #include "ildg.h"
+#include <lime.h>
 
 #include "../mpi/HalosExchange.h"
 
@@ -13,54 +14,58 @@ std::string generate_ildg_xml(int L_glob) {
     return std::string(buf);
 }
 
-void write_lime_header(MPI_File& fh, MPI_Offset offset, const std::string& type, uint64_t len,
-                       bool mb, bool me) {
-    LimeHeader h;
-    std::memset(&h, 0, 144);
-    h.magic = htonl(0x454d494c);
-    h.version = htons(1);
-    h.mb_me = htons((mb ? 1 : 0) | (me ? 2 : 0));
-    h.data_length = __builtin_bswap64(len);
-    std::strncpy(h.type, type.c_str(), 127);
-
-    MPI_File_write_at(fh, offset, &h, 144, MPI_BYTE, MPI_STATUS_IGNORE);
+// Conversion en Big-Endian (requis par la norme ILDG)
+inline double swap_double_endian(double val) {
+    uint64_t bits;
+    std::memcpy(&bits, &val, sizeof(bits));
+    bits = __builtin_bswap64(bits);
+    double swapped;
+    std::memcpy(&swapped, &bits, sizeof(swapped));
+    return swapped;
 }
 
-void save_configuration_lime(const std::string& filename, const GaugeField& field,
-                             const GeometryCB& geo, const mpi::MpiTopology& topo) {
-    int L_glob = geo.L_int * topo.n_core_dim;
-    std::string xml = generate_ildg_xml(L_glob);
-    uint64_t n_links_glob = (uint64_t)L_glob * L_glob * L_glob * L_glob * 4;
-    uint64_t binary_size = n_links_glob * 18 * sizeof(double);
+void save_ildg_clime(const std::string& filename, 
+                     const GaugeField& field, 
+                     const GeometryCB& geo, 
+                     const mpi::MpiTopology& topo) 
+{
+    int L_global = geo.L_int * topo.n_core_dim;
+    long nbytes_binary = (long)L_global * L_global * L_global * L_global * 72 * sizeof(double);
+    size_t header_offset = 0;
 
-    // Offsets LIME : Header1(144) + XML + Header2(144) + Data
-    MPI_Offset xml_off = 144;
-    MPI_Offset header2_off = xml_off + xml.size();
-    MPI_Offset data_off = header2_off + 144;
-
-    MPI_File fh;
-    MPI_File_open(topo.cart_comm, filename.c_str(), MPI_MODE_CREATE | MPI_MODE_WRONLY,
-                  MPI_INFO_NULL, &fh);
-
+    // --- ÉTAPE 1 : Le Rang 0 écrit les Headers LIME ---
     if (topo.rank == 0) {
-        write_lime_header(fh, 0, "ildg-format", xml.size(), true, false);
-        MPI_File_write_at(fh, xml_off, xml.data(), xml.size(), MPI_BYTE, MPI_STATUS_IGNORE);
-        write_lime_header(fh, header2_off, "ildg-binary-data", binary_size, false, true);
+        FILE *fp = fopen(filename.c_str(), "w");
+        LimeWriter *w = limeCreateWriter(fp);
+
+        // 1. Record XML (ildg-format)
+        std::string xml = generate_ildg_xml(L_global);
+        n_uint64_t xml_len = xml.size();
+        LimeRecordHeader *h_xml = limeCreateHeader(1, 1, (char*)"ildg-format", xml.size());
+        limeWriteRecordHeader(h_xml, w);
+        limeWriteRecordData((void*)xml.c_str(), &xml_len, w);
+        limeDestroyHeader(h_xml);
+
+        // 2. Record Binaire (ildg-binary-data)
+        // On écrit juste le header pour réserver l'espace des données
+        LimeRecordHeader *h_bin = limeCreateHeader(0, 1, (char*)"ildg-binary-data", nbytes_binary);
+        limeWriteRecordHeader(h_bin, w);
+        
+        // On récupère la position actuelle pour dire aux autres où commencer à écrire
+        header_offset = ftell(fp);
+
+        limeDestroyWriter(w);
+        fclose(fp);
     }
 
-    // Vue MPI : on définit le sous-cube local dans le cube global (T, Z, Y, X, matrices_18_doubles)
-    int g_sizes[5] = {L_glob, L_glob, L_glob, L_glob, 18};
-    int l_sizes[5] = {geo.L_int, geo.L_int, geo.L_int, geo.L_int, 18};
-    int starts[5] = {topo.local_coords[3] * geo.L_int, topo.local_coords[2] * geo.L_int,
-                     topo.local_coords[1] * geo.L_int, topo.local_coords[0] * geo.L_int, 0};
+    // --- ÉTAPE 2 : Synchronisation de l'offset ---
+    MPI_Bcast(&header_offset, 1, MPI_OFFSET, 0, topo.cart_comm);
 
-    MPI_Datatype file_view;
-    MPI_Type_create_subarray(5, g_sizes, l_sizes, starts, MPI_ORDER_C, MPI_DOUBLE, &file_view);
-    MPI_Type_commit(&file_view);
-
-    // Préparation du buffer local (Extraction du coeur sans les halos + Swap Endian)
-    std::vector<double> buffer;
-    buffer.reserve(geo.V_int * 4 * 18);
+    // --- ÉTAPE 3 : Écriture MPI-I/O (Identique à la fonction précédente) ---
+    // On réutilise la logique de local_buffer et de subarray
+    
+    std::vector<double> local_buffer(geo.V_int * 72);
+    size_t buf_idx = 0;
     for (int t = 1; t <= geo.L_int; ++t) {
         for (int z = 1; z <= geo.L_int; ++z) {
             for (int y = 1; y <= geo.L_int; ++y) {
@@ -68,78 +73,40 @@ void save_configuration_lime(const std::string& filename, const GaugeField& fiel
                     size_t site = geo.index(x, y, z, t);
                     for (int mu = 0; mu < 4; ++mu) {
                         auto link = field.view_link_const(site, mu);
-                        for (int i = 0; i < 3; ++i)
+                        for (int i = 0; i < 3; ++i) {
                             for (int j = 0; j < 3; ++j) {
-                                double re = link(i, j).real(), im = link(i, j).imag();
-                                swap_endian_64(&re);
-                                swap_endian_64(&im);
-                                buffer.push_back(re);
-                                buffer.push_back(im);
+                                local_buffer[buf_idx++] = swap_double_endian(link(i, j).real());
+                                local_buffer[buf_idx++] = swap_double_endian(link(i, j).imag());
                             }
+                        }
                     }
                 }
             }
         }
     }
-
-    MPI_File_set_view(fh, data_off, MPI_DOUBLE, file_view, "native", MPI_INFO_NULL);
-    MPI_File_write_all(fh, buffer.data(), buffer.size(), MPI_DOUBLE, MPI_STATUS_IGNORE);
-
-    MPI_File_close(&fh);
-    MPI_Type_free(&file_view);
-}
-
-void load_configuration_lime(const std::string& filename, GaugeField& field, const GeometryCB& geo,
-                             mpi::MpiTopology& topo) {
-    int L_glob = geo.L_int * topo.n_core_dim;
-    std::string xml = generate_ildg_xml(L_glob);
-    MPI_Offset data_off = 144 + xml.size() + 144;
 
     MPI_File fh;
-    if (MPI_File_open(topo.cart_comm, filename.c_str(), MPI_MODE_RDONLY, MPI_INFO_NULL, &fh) !=
-        MPI_SUCCESS) {
-        if (topo.rank == 0) std::cerr << "Erreur : Impossible d'ouvrir " << filename << std::endl;
-        return;
-    }
+    MPI_File_open(topo.cart_comm, filename.c_str(), MPI_MODE_WRONLY, MPI_INFO_NULL, &fh);
 
-    int g_sizes[5] = {L_glob, L_glob, L_glob, L_glob, 18};
-    int l_sizes[5] = {geo.L_int, geo.L_int, geo.L_int, geo.L_int, 18};
-    int starts[5] = {topo.local_coords[3] * geo.L_int, topo.local_coords[2] * geo.L_int,
-                     topo.local_coords[1] * geo.L_int, topo.local_coords[0] * geo.L_int, 0};
+    // Définition du type de donnée et du subarray (comme avant)
+    MPI_Datatype site_type, file_type;
+    MPI_Type_contiguous(72, MPI_DOUBLE, &site_type);
+    MPI_Type_commit(&site_type);
 
-    MPI_Datatype file_view;
-    MPI_Type_create_subarray(5, g_sizes, l_sizes, starts, MPI_ORDER_C, MPI_DOUBLE, &file_view);
-    MPI_Type_commit(&file_view);
+    int g_sz[4] = {L_global, L_global, L_global, L_global};
+    int l_sz[4] = {geo.L_int, geo.L_int, geo.L_int, geo.L_int};
+    int start[4] = {topo.local_coords[3]*geo.L_int, topo.local_coords[2]*geo.L_int, 
+                    topo.local_coords[1]*geo.L_int, topo.local_coords[0]*geo.L_int};
 
-    std::vector<double> buffer(geo.V_int * 4 * 18);
-    MPI_File_set_view(fh, data_off, MPI_DOUBLE, file_view, "native", MPI_INFO_NULL);
-    MPI_File_read_all(fh, buffer.data(), buffer.size(), MPI_DOUBLE, MPI_STATUS_IGNORE);
+    MPI_Type_create_subarray(4, g_sz, l_sz, start, MPI_ORDER_C, site_type, &file_type);
+    MPI_Type_commit(&file_type);
 
-    // Reconstruction des matrices SU(3) dans GaugeField
-    size_t idx = 0;
-    for (int t = 1; t <= geo.L_int; ++t) {
-        for (int z = 1; z <= geo.L_int; ++z) {
-            for (int y = 1; y <= geo.L_int; ++y) {
-                for (int x = 1; x <= geo.L_int; ++x) {
-                    size_t site = geo.index(x, y, z, t);
-                    for (int mu = 0; mu < 4; ++mu) {
-                        SU3 mat;
-                        for (int i = 0; i < 3; ++i)
-                            for (int j = 0; j < 3; ++j) {
-                                double re = buffer[idx++], im = buffer[idx++];
-                                swap_endian_64(&re);
-                                swap_endian_64(&im);
-                                mat(i, j) = std::complex<double>(re, im);
-                            }
-                        field.view_link(site, mu) = mat;
-                    }
-                }
-            }
-        }
-    }
+    // APPLICATION DE L'OFFSET LIME
+    MPI_File_set_view(fh, (MPI_Offset)header_offset, site_type, file_type, "native", MPI_INFO_NULL);
+    MPI_File_write_all(fh, local_buffer.data(), (int)geo.V_int, site_type, MPI_STATUS_IGNORE);
 
     MPI_File_close(&fh);
-    MPI_Type_free(&file_view);
-
-    mpi::exchange::exchange_halos_cascade(field, geo, topo);
+    MPI_Type_free(&file_type);
+    MPI_Type_free(&site_type);
 }
+

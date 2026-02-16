@@ -8,12 +8,12 @@ find_package(MPI REQUIRED)
 find_package(Eigen3 REQUIRED) # Décommente si besoin
 include(FetchContent)
 #Lime
-#FetchContent_Declare(
-#        lime
-#        GIT_REPOSITORY https://github.com/usqcd-software/c-lime.git
-#        GIT_TAG        master  # Ou un tag spécifique comme v1.3.2
-#)
-#FetchContent_MakeAvailable(lime)
+FetchContent_Declare(
+        lime
+        GIT_REPOSITORY https://github.com/usqcd-software/c-lime.git
+        GIT_TAG        master  # Ou un tag spécifique comme v1.3.2
+)
+FetchContent_MakeAvailable(lime)
 #Eigen
 if(NOT Eigen3_FOUND)
     message(STATUS "Eigen3 not found. Download via FetchContent...")
@@ -44,7 +44,7 @@ add_executable(gauge_ecmc_cb src/bin/gauge_ecmc_cb.cpp
         src/flow/gradient_flow.cpp
         src/io/ildg.cpp
 )
-target_link_libraries(gauge_ecmc_cb PRIVATE MPI::MPI_CXX Eigen3::Eigen)
+target_link_libraries(gauge_ecmc_cb PRIVATE MPI::MPI_CXX Eigen3::Eigen lime)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
     target_compile_options(gauge_ecmc_cb PRIVATE
             -O2
@@ -78,7 +78,7 @@ add_executable(gauge_hb_cb src/bin/gauge_hb_cb.cpp
         src/flow/gradient_flow.cpp
         src/io/ildg.cpp
 )
-target_link_libraries(gauge_hb_cb PRIVATE MPI::MPI_CXX Eigen3::Eigen)
+target_link_libraries(gauge_hb_cb PRIVATE MPI::MPI_CXX Eigen3::Eigen lime)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
     target_compile_options(gauge_hb_cb PRIVATE
             -O2

@@ -105,24 +105,9 @@ void generate_hb_cb(const RunParamsHbCB& rp) {
     
     //Save conf
     std::string filename = "data/conf.ildg";
-    save_configuration_lime(filename, field, geo, topo);
     if (topo.rank == 0){
         std::cout << "Conf saved at " +filename+"\n";
     }
-
-    //Read conf
-    GaugeField field2(geo);
-    load_configuration_lime(filename, field2, geo, topo);
-    GradientFlow flow2(eps, field2, geo);
-    mpi::observables::topo_charge_flowed(field2, geo, flow, topo);
-    p = mpi::observables::mean_plaquette_global(field2, geo, topo);
-    if (topo.rank == 0){
-        std::cout << "P = " << p << "\n";
-        std::cout << field2.view_link_const(geo.index(1,1,1,1), 0)<<"\n";
-    }
-
-
-
 
     //===========================Output======================================
 
