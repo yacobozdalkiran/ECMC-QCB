@@ -3,57 +3,49 @@
 #include <cstdint>
 
 GeometryCB::GeometryCB(int L_) {
-    L = L_;
-    V = L * L * L * L;
-    V_halo = L * L * L;
-    neighbors.resize((V + 8 * V_halo) * 8, SIZE_MAX);
-    // On étend la boucle de -1 à L pour couvrir la "coquille" des halos
-    for (int t = -1; t <= L; t++) {
-        for (int z = -1; z <= L; z++) {
-            for (int y = -1; y <= L; y++) {
-                for (int x = -1; x <= L; x++) {
-                    // On ne calcule les voisins que pour les sites qui existent dans notre
-                    // indexation (index_w_halo ne gère pas les coins comme x=-1 ET y=-1, seulement
-                    // une face à la fois)
-                    int out_count = (x == -1 || x == L) + (y == -1 || y == L) +
-                                    (z == -1 || z == L) + (t == -1 || t == L);
-
-                    if (out_count > 1) continue;  // On ignore les coins/arêtes (pas nécessaires)
-
-                    size_t site_idx = index_w_halo(x, y, z, t);
-
+    L_int = L_;
+    V_int = L_int * L_int * L_int * L_int;
+    L_ext = L_int + 2;
+    V_ext = L_ext * L_ext * L_ext * L_ext;
+    neighbors.resize((V_ext) * 8, SIZE_MAX);
+    // On étend la boucle de 0 à L_ext pour couvrir la "coquille" des halos
+    for (int t = 0; t < L_ext; t++) {
+        for (int z = 0; z < L_ext; z++) {
+            for (int y = 0; y < L_ext; y++) {
+                for (int x = 0; x < L_ext; x++) {
+                    size_t site = index(x, y, z, t);
                     // Direction X (mu=0)
-                    neighbors[index_neigh(site_idx, 0, up)] = index_w_halo(x + 1, y, z, t);
-                    neighbors[index_neigh(site_idx, 0, down)] = index_w_halo(x - 1, y, z, t);
+                    if (x + 1 < L_ext) neighbors[index_neigh(site, 0, up)] = index(x + 1, y, z, t);
+                    if (x - 1 >= 0) neighbors[index_neigh(site, 0, down)] = index(x - 1, y, z, t);
                     // Direction Y (mu=1)
-                    neighbors[index_neigh(site_idx, 1, up)] = index_w_halo(x, y + 1, z, t);
-                    neighbors[index_neigh(site_idx, 1, down)] = index_w_halo(x, y - 1, z, t);
+                    if (y + 1 < L_ext) neighbors[index_neigh(site, 1, up)] = index(x, y + 1, z, t);
+                    if (y - 1 >= 0) neighbors[index_neigh(site, 1, down)] = index(x, y - 1, z, t);
                     // Direction Z (mu=2)
-                    neighbors[index_neigh(site_idx, 2, up)] = index_w_halo(x, y, z + 1, t);
-                    neighbors[index_neigh(site_idx, 2, down)] = index_w_halo(x, y, z - 1, t);
+                    if (z + 1 < L_ext) neighbors[index_neigh(site, 2, up)] = index(x, y, z + 1, t);
+                    if (z - 1 >= 0) neighbors[index_neigh(site, 2, down)] = index(x, y, z - 1, t);
                     // Direction T (mu=3)
-                    neighbors[index_neigh(site_idx, 3, up)] = index_w_halo(x, y, z, t + 1);
-                    neighbors[index_neigh(site_idx, 3, down)] = index_w_halo(x, y, z, t - 1);
+                    if (t + 1 < L_ext) neighbors[index_neigh(site, 3, up)] = index(x, y, z, t + 1);
+                    if (t - 1 >= 0) neighbors[index_neigh(site, 3, down)] = index(x, y, z, t - 1);
                 }
             }
         }
     }
 
-    frozen.resize((V + 8 * V_halo) * 4, false);
+    frozen.resize(V_ext * 4, false);
     // Frozen links are those that step out of the lattice core or belong to halos
-    for (int t = -1; t <= L; t++) {
-        for (int z = -1; z <= L; z++) {
-            for (int y = -1; y <= L; y++) {
-                for (int x = -1; x <= L; x++) {
+    for (int t = 0 ; t < L_ext; t++) {
+        for (int z = 0; z < L_ext; z++) {
+            for (int y = 0; y < L_ext; y++) {
+                for (int x = 0; x < L_ext; x++) {
                     bool link_is_frozen = false;
-                    if (x == -1 or y == -1 or z == -1 or t == -1) link_is_frozen = true;
-                    if (x == L or y == L or z == L or t == L) link_is_frozen = true;
+                    if (x == 0 or y == 0 or z == 0 or t == 0) link_is_frozen = true;
+                    if (x == L_ext-1 or y == L_ext-1 or z == L_ext-1 or t == L_ext-1) link_is_frozen = true;
                     for (int mu = 0; mu < 4; mu++) {
-                        if (x == L - 1 and mu == 0) link_is_frozen = true;
-                        if (y == L - 1 and mu == 1) link_is_frozen = true;
-                        if (z == L - 1 and mu == 2) link_is_frozen = true;
-                        if (t == L - 1 and mu == 3) link_is_frozen = true;
-                        size_t i = index_w_halo(x, y, z, t);
+                        if (x == L_int - 1 and mu == 0) link_is_frozen = true;
+                        if (y == L_int - 1 and mu == 1) link_is_frozen = true;
+                        if (z == L_int - 1 and mu == 2) link_is_frozen = true;
+                        if (t == L_int - 1 and mu == 3) link_is_frozen = true;
+                        size_t i = index(x, y, z, t);
                         frozen[index_frozen(i, mu)] = link_is_frozen;
                     }
                 }
@@ -61,12 +53,12 @@ GeometryCB::GeometryCB(int L_) {
         }
     }
 
-    links_staples.resize(V * 4 * 6 * 3, std::make_pair(SIZE_MAX, -1));
+    links_staples.resize(V_ext * 4 * 6 * 3, std::make_pair(SIZE_MAX, -1));
     // 4 links per site, 6 staples per link, 3 links per staple
-    for (int t = 0; t < L; t++) {
-        for (int z = 0; z < L; z++) {
-            for (int y = 0; y < L; y++) {
-                for (int x = 0; x < L; x++) {
+    for (int t = 0; t < L_ext; t++) {
+        for (int z = 0; z < L_ext; z++) {
+            for (int y = 0; y < L_ext; y++) {
+                for (int x = 0; x < L_ext; x++) {
                     size_t site = index(x, y, z, t);  // x
                     for (int mu = 0; mu < 4; mu++) {
                         if (!is_frozen(site, mu)) {
