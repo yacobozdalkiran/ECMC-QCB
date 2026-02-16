@@ -3,13 +3,13 @@
 #include "../flow/gradient_flow.h"
 #include "../gauge/GaugeField.h"
 #include "../heatbath/heatbath_mpi.h"
+#include "../io/ildg.h"
 #include "../io/io.h"
 #include "../mpi/HalosExchange.h"
 #include "../mpi/HalosShift.h"
 #include "../mpi/MpiTopology.h"
 #include "../mpi/Shift.h"
 #include "../observables/observables_mpi.h"
-#include "../io/ildg.h"
 
 void print_parameters(const RunParamsHbCB& rp, const mpi::MpiTopology& topo) {
     if (topo.rank == 0) {
@@ -95,32 +95,31 @@ void generate_hb_cb(const RunParamsHbCB& rp) {
     //===========================Gradient flow test==========================
 
     double p = mpi::observables::mean_plaquette_global(field, geo, topo);
-    if (topo.rank == 0){
+    if (topo.rank == 0) {
         std::cout << "P = " << p << "\n";
-        std::cout << field.view_link_const(geo.index(1,1,1,1), 0)<<"\n";
+        std::cout << field.view_link_const(geo.index(1, 1, 1, 1), 0) << "\n";
     }
     double eps = 0.02;
     GradientFlow flow(eps, field, geo);
     mpi::observables::topo_charge_flowed(field, geo, flow, topo);
-    
-    //Save conf
+
+    // Save conf
     std::string filename = "data/conf.ildg";
     save_ildg_clime(filename, field, geo, topo);
-    if (topo.rank == 0){
-        std::cout << "Conf saved at " +filename+"\n";
+    if (topo.rank == 0) {
+        std::cout << "Conf saved at " + filename + "\n";
     }
 
     GaugeField field2(geo);
     read_ildg_clime(filename, field2, geo, topo);
     p = mpi::observables::mean_plaquette_global(field2, geo, topo);
-    if (topo.rank == 0){
+    if (topo.rank == 0) {
         std::cout << "P = " << p << "\n";
-        std::cout << field2.view_link_const(geo.index(1,1,1,1), 0)<<"\n";
+        std::cout << field2.view_link_const(geo.index(1, 1, 1, 1), 0) << "\n";
     }
     eps = 0.02;
     GradientFlow flow2(eps, field2, geo);
     mpi::observables::topo_charge_flowed(field2, geo, flow2, topo);
-
 
     //===========================Output======================================
 
