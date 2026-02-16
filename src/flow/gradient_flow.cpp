@@ -42,7 +42,7 @@ void GradientFlow::compute_w1() {
                 for (int x = 1; x <= geo_p->L_int; x++) {
                     size_t site = geo_p->index(x, y, z, t);
                     for (int mu = 0; mu < 4; mu++) {
-                        tmp = exp_analytic(force_0.view_link_const(site, mu), 0.25 * epsilon) *
+                        tmp = exp_su3_luscher(force_0.view_link_const(site, mu), 0.25 * epsilon) *
                               field_c.view_link_const(site, mu);
                         field_c.view_link(site, mu) = tmp;
                     }
@@ -64,7 +64,7 @@ void GradientFlow::compute_w2() {
                     for (int mu = 0; mu < 4; mu++) {
                         Z = (8.0 / 9.0) * epsilon * force_1.view_link_const(site, mu) -
                             (17.0 / 36.0) * epsilon * force_0.view_link_const(site, mu);
-                        tmp = exp_analytic(Z, 1.0) * field_c.view_link_const(site, mu);
+                        tmp = exp_su3_luscher(Z, 1.0) * field_c.view_link_const(site, mu);
                         field_c.view_link(site, mu) = tmp;
                     }
                 }
@@ -104,7 +104,7 @@ void GradientFlow::compute_w3() {
                     for (int mu = 0; mu < 4; mu++) {
                         Z = 0.75 * epsilon * force_1.view_link_const(site, mu) -
                             epsilon * force_0.view_link_const(site, mu);
-                        tmp = exp_analytic(Z, 1.0) * field_c.view_link_const(site, mu);
+                        tmp = exp_su3_luscher(Z, 1.0) * field_c.view_link_const(site, mu);
                         field_c.view_link(site, mu) = tmp;
                     }
                 }
