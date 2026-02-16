@@ -36,6 +36,7 @@ add_executable(gauge_ecmc_cb src/bin/gauge_ecmc_cb.cpp
         src/geometry/types.h
         src/mpi/MpiTopology.cpp
         src/mpi/HalosExchange.cpp
+        src/observables/observables_mpi.cpp
 )
 
 
