@@ -9,6 +9,7 @@
 #include "../mpi/MpiTopology.h"
 #include "../mpi/Shift.h"
 #include "../observables/observables_mpi.h"
+#include "../io/ildg.h"
 
 void print_parameters(const RunParamsHbCB& rp, const mpi::MpiTopology& topo) {
     if (topo.rank == 0) {
@@ -93,9 +94,36 @@ void generate_hb_cb(const RunParamsHbCB& rp) {
 
     //===========================Gradient flow test==========================
 
+    double p = mpi::observables::mean_plaquette_global(field, geo, topo);
+    if (topo.rank == 0){
+        std::cout << "P = " << p << "\n";
+        std::cout << field.view_link_const(geo.index(1,1,1,1), 0)<<"\n";
+    }
     double eps = 0.02;
     GradientFlow flow(eps, field, geo);
     mpi::observables::topo_charge_flowed(field, geo, flow, topo);
+    
+    //Save conf
+    std::string filename = "data/conf.ildg";
+    save_configuration_lime(filename, field, geo, topo);
+    if (topo.rank == 0){
+        std::cout << "Conf saved at " +filename+"\n";
+    }
+
+    //Read conf
+    GaugeField field2(geo);
+    load_configuration_lime(filename, field2, geo, topo);
+    GradientFlow flow2(eps, field2, geo);
+    mpi::observables::topo_charge_flowed(field2, geo, flow, topo);
+    p = mpi::observables::mean_plaquette_global(field2, geo, topo);
+    if (topo.rank == 0){
+        std::cout << "P = " << p << "\n";
+        std::cout << field2.view_link_const(geo.index(1,1,1,1), 0)<<"\n";
+    }
+
+
+
+
     //===========================Output======================================
 
     // Flatten the vector

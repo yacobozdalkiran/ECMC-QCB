@@ -33,13 +33,14 @@ GeometryCB::GeometryCB(int L_) {
 
     frozen.resize(V_ext * 4, false);
     // Frozen links are those that step out of the lattice core or belong to halos
-    for (int t = 0 ; t < L_ext; t++) {
+    for (int t = 0; t < L_ext; t++) {
         for (int z = 0; z < L_ext; z++) {
             for (int y = 0; y < L_ext; y++) {
                 for (int x = 0; x < L_ext; x++) {
                     bool link_is_frozen = false;
                     if (x == 0 or y == 0 or z == 0 or t == 0) link_is_frozen = true;
-                    if (x == L_ext-1 or y == L_ext-1 or z == L_ext-1 or t == L_ext-1) link_is_frozen = true;
+                    if (x == L_ext - 1 or y == L_ext - 1 or z == L_ext - 1 or t == L_ext - 1)
+                        link_is_frozen = true;
                     for (int mu = 0; mu < 4; mu++) {
                         if (x == L_int and mu == 0) link_is_frozen = true;
                         if (y == L_int and mu == 1) link_is_frozen = true;

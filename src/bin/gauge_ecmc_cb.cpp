@@ -95,17 +95,7 @@ void generate_ecmc_cb(const RunParamsECB& rp) {
 
     double eps = 0.02;
     GradientFlow flow(eps, field, geo);
-    int precision = 6;
-    int precision_t = 3;
-    for (double time = 0.0; time < 5.0; time += eps) {
-        flow.rk3_step(topo);
-        auto qe = mpi::observables::topo_q_e_clover_global(flow.field_c, geo, topo);
-        if (topo.rank == 0)
-            std::cout << "t = " << io::format_double(time, precision_t)
-                      << ", Q = " << io::format_double(qe.first, precision)
-                      << ", t²E = " << io::format_double(time * time * qe.second, precision)
-                      << "\n";
-    }
+    mpi::observables::topo_charge_flowed(field, geo, flow, topo);
 
     //===========================Output======================================
 

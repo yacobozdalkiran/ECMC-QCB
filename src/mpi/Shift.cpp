@@ -176,4 +176,5 @@ void mpi::shift::random_shift(GaugeField& field, const GeometryCB& geo, HalosShi
     shift_field(field, geo, h, topo, s);
     // Après un shift global, les halos sont obsolètes
     // Il faut relancer l'échange de halos.
+    mpi::exchange::exchange_halos_cascade(field, geo, topo);
 };

@@ -32,6 +32,7 @@ double mpi::observables::mean_plaquette_local(const GaugeField& field, const Geo
 // first)
 double mpi::observables::mean_plaquette_global(GaugeField& field, const GeometryCB& geo,
                                                MpiTopology& topo) {
+    mpi::exchange::exchange_halos_cascade(field, geo, topo);
     double local_mean_plaquette = mean_plaquette_local(field, geo);
     double global_mean_plaquette = 0.0;
     MPI_Allreduce(&local_mean_plaquette, &global_mean_plaquette, 1, MPI_DOUBLE, MPI_SUM,
@@ -144,6 +145,7 @@ std::pair<double, double> mpi::observables::topo_q_e_clover_global(const GaugeFi
     // On retourne {Charge Totale, Densité d'énergie moyenne globale}
     return {total_q, total_e / total_volume};
 };
+
 double mpi::observables::topo_charge_flowed(GaugeField& field, const GeometryCB& geo,
                                             GradientFlow& gf, mpi::MpiTopology& topo) {
     mpi::exchange::exchange_halos_cascade(field, geo, topo);
