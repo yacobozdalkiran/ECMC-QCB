@@ -1,0 +1,11 @@
+L_core=4
+n_core_dims=2
+cold_start=false
+N_shift=2000
+N_switch_eo=2
+seed=12345
+
+beta = 6.0
+N_samples = 3
+N_sweeps = 1
+N_hits = 1

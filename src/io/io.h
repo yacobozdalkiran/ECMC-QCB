@@ -10,7 +10,6 @@
 #include <vector>
 #include <sstream>
 #include <iomanip>
-#include "../gauge/GaugeField.h"
 
 #include "params.h"
 
@@ -40,8 +39,6 @@ namespace io {
     //ILDG
     namespace ildg {
         std::string generate_ildg_xml(int lx, int ly, int lz, int lt, int precision = 64);
-        void save_ildg(const GaugeField &field, const GeometryCB &geo, const std::string &filename);
-        void read_ildg(GaugeField &field, const GeometryCB &geo, const std::string &filename);
     }
 }
 
