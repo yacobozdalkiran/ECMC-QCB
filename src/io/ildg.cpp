@@ -1,8 +1,8 @@
 #include "ildg.h"
-#include <lime.h>
-
 #include "../mpi/HalosExchange.h"
-
+extern "C" {
+    #include <lime.h>
+}
 std::string generate_ildg_xml(int L_glob) {
     char buf[512];
     std::sprintf(buf,
@@ -110,3 +110,102 @@ void save_ildg_clime(const std::string& filename,
     MPI_Type_free(&site_type);
 }
 
+void read_ildg_clime(const std::string& filename, 
+                    GaugeField& field, 
+                    const GeometryCB& geo, 
+                    mpi::MpiTopology& topo) 
+{
+    MPI_Offset header_offset = 0;
+    int L_global = geo.L_int * topo.n_core_dim;
+    MPI_Offset expected_bytes = static_cast<MPI_Offset>(L_global) * L_global * L_global * L_global * 72 * sizeof(double);
+
+    // --- ÉTAPE 1 : Le Rang 0 cherche le record binaire ---
+    if (topo.rank == 0) {
+        FILE *fp = fopen(filename.c_str(), "r");
+        if (!fp) {
+            std::cerr << "Erreur : Impossible d'ouvrir " << filename << std::endl;
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
+
+        LimeReader *r = limeCreateReader(fp);
+        int status;
+        
+        // On parcourt les records un par un
+        while ((status = limeReaderNextRecord(r)) != LIME_EOF) {
+            char* type = limeReaderType(r);
+            n_uint64_t nbytes = limeReaderBytes(r);
+
+            if (std::string(type) == "ildg-binary-data") {
+                if ((MPI_Offset)nbytes != expected_bytes) {
+                    std::cerr << "Erreur : Taille binaire incorrecte dans le fichier !" << std::endl;
+                    MPI_Abort(MPI_COMM_WORLD, 1);
+                }
+                // L'offset est la position actuelle du pointeur de fichier
+                header_offset = ftello(fp);
+                break;
+            }
+        }
+        limeDestroyReader(r);
+        fclose(fp);
+    }
+
+    // --- ÉTAPE 2 : Diffusion de l'offset à tous les rangs ---
+    MPI_Bcast(&header_offset, 1, MPI_OFFSET, 0, topo.cart_comm);
+
+    if (header_offset == 0) {
+        if (topo.rank == 0) std::cerr << "Erreur : Record 'ildg-binary-data' non trouvé." << std::endl;
+        MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+
+    // --- ÉTAPE 3 : Lecture Parallèle avec MPI-I/O ---
+    std::vector<double> local_buffer(geo.V_int * 72);
+
+    MPI_File fh;
+    MPI_File_open(topo.cart_comm, filename.c_str(), MPI_MODE_RDONLY, MPI_INFO_NULL, &fh);
+
+    // Configuration de la vue (même logique que pour save_ildg)
+    MPI_Datatype site_type, file_type;
+    MPI_Type_contiguous(72, MPI_DOUBLE, &site_type);
+    MPI_Type_commit(&site_type);
+
+    int g_sz[4] = {L_global, L_global, L_global, L_global};
+    int l_sz[4] = {geo.L_int, geo.L_int, geo.L_int, geo.L_int};
+    int start[4] = {topo.local_coords[3] * geo.L_int, topo.local_coords[2] * geo.L_int, 
+                    topo.local_coords[1] * geo.L_int, topo.local_coords[0] * geo.L_int};
+
+    MPI_Type_create_subarray(4, g_sz, l_sz, start, MPI_ORDER_C, site_type, &file_type);
+    MPI_Type_commit(&file_type);
+
+    MPI_File_set_view(fh, header_offset, site_type, file_type, "native", MPI_INFO_NULL);
+    MPI_File_read_all(fh, local_buffer.data(), static_cast<int>(geo.V_int), site_type, MPI_STATUS_IGNORE);
+
+    MPI_File_close(&fh);
+
+    // --- ÉTAPE 4 : Répartition dans GaugeField et Byte-Swap ---
+    size_t buf_idx = 0;
+    for (int t = 1; t <= geo.L_int; ++t) {
+        for (int z = 1; z <= geo.L_int; ++z) {
+            for (int y = 1; y <= geo.L_int; ++y) {
+                for (int x = 1; x <= geo.L_int; ++x) {
+                    
+                    size_t site = geo.index(x, y, z, t);
+                    auto link_view = field.view_link(site, 0); // On accède via Eigen Map
+
+                    for (int mu = 0; mu < 4; ++mu) {
+                        for (int i = 0; i < 3; ++i) {
+                            for (int j = 0; j < 3; ++j) {
+                                double re = swap_double_endian(local_buffer[buf_idx++]);
+                                double im = swap_double_endian(local_buffer[buf_idx++]);
+                                field.view_link(site, mu)(i, j) = Complex(re, im);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    MPI_Type_free(&file_type);
+    MPI_Type_free(&site_type);
+    mpi::exchange::exchange_halos_cascade(field, geo, topo);
+}

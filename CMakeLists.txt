@@ -4,6 +4,10 @@ project(ECMC_QCB)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
+endif()
+
 find_package(MPI REQUIRED)
 find_package(Eigen3 REQUIRED) # Décommente si besoin
 include(FetchContent)
