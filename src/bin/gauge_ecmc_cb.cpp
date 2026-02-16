@@ -2,12 +2,13 @@
 
 #include <iostream>
 
-#include "../io/io.h"
 #include "../ecmc/ecmc_mpi_cb.h"
+#include "../flow/gradient_flow.h"
 #include "../gauge/GaugeField.h"
+#include "../io/io.h"
+#include "../mpi/HalosExchange.h"
 #include "../mpi/HalosShift.h"
 #include "../mpi/Shift.h"
-#include "../mpi/HalosExchange.h"
 #include "../observables/observables_mpi.h"
 
 void print_parameters(const RunParamsECB& rp, const mpi::MpiTopology& topo) {
@@ -70,32 +71,40 @@ void generate_ecmc_cb(const RunParamsECB& rp) {
         for (int j = 0; j < N_switch_eo; j++) {
             // Even parity :
             if (topo.rank == 0) {
-                std::cout << "Shift : " << i  << ", Switch : " << j << ", Parity : Even\n";
+                std::cout << "Shift : " << i << ", Switch : " << j << ", Parity : Even\n";
             }
             parity active_parity = even;
             mpi::exchange::exchange_halos_cascade(field, geo, topo);
-            auto qe = mpi::observables::topo_q_e_clover_global(field, geo, topo);
-            if (topo.rank == 0){
-                std::cout << "Q = " << qe.first << ", E = " << qe.second << '\n';
-            }
             plaquette[i][j][0] =
                 mpi::ecmccb::samples_improved(field, geo, ep, rng, topo, active_parity);
 
             // Odd parity :
             if (topo.rank == 0) {
-                std::cout << "Shift : " << i  << ", Switch : " << j << ", Parity : Odd\n";
+                std::cout << "Shift : " << i << ", Switch : " << j << ", Parity : Odd\n";
             }
             active_parity = odd;
             mpi::exchange::exchange_halos_cascade(field, geo, topo);
-            qe = mpi::observables::topo_q_e_clover_global(field, geo, topo);
-            if (topo.rank == 0){
-                std::cout << "Q = " << qe.first << ", E = " << qe.second << '\n';
-            }
             plaquette[i][j][1] =
                 mpi::ecmccb::samples_improved(field, geo, ep, rng, topo, active_parity);
         }
         // Random shift
         mpi::shift::random_shift(field, geo, halo_shift, topo, rng);
+    }
+
+    //===========================Gradient flow test==========================
+
+    double eps = 0.02;
+    GradientFlow flow(eps, field, geo);
+    int precision = 6;
+    int precision_t = 3;
+    for (double time = 0.0; time < 5.0; time += eps) {
+        flow.rk3_step(topo);
+        auto qe = mpi::observables::topo_q_e_clover_global(flow.field_c, geo, topo);
+        if (topo.rank == 0)
+            std::cout << "t = " << io::format_double(time, precision_t)
+                      << ", Q = " << io::format_double(qe.first, precision)
+                      << ", t²E = " << io::format_double(time * time * qe.second, precision)
+                      << "\n";
     }
 
     //===========================Output======================================
@@ -118,15 +127,13 @@ void generate_ecmc_cb(const RunParamsECB& rp) {
         }
         // Write the output
         int precision_filename = 1;
-        std::string filename =
-            "EMQCB_" + std::to_string(L * n_core_dims) 
-            + "b" + io::format_double(ep.beta, precision_filename) 
-            + "Ns" + std::to_string(rp.N_shift) 
-            + "Nsw" + std::to_string(rp.N_switch_eo) 
-            + "Np" + std::to_string(ep.N_samples) 
-            + "c" + std::to_string(rp.cold_start) 
-            + "ts" + io::format_double(ep.param_theta_sample, precision_filename) 
-            + "tr" + io::format_double(ep.param_theta_refresh, precision_filename);
+        std::string filename = "EMQCB_" + std::to_string(L * n_core_dims) + "b" +
+                               io::format_double(ep.beta, precision_filename) + "Ns" +
+                               std::to_string(rp.N_shift) + "Nsw" + std::to_string(rp.N_switch_eo) +
+                               "Np" + std::to_string(ep.N_samples) + "c" +
+                               std::to_string(rp.cold_start) + "ts" +
+                               io::format_double(ep.param_theta_sample, precision_filename) + "tr" +
+                               io::format_double(ep.param_theta_refresh, precision_filename);
         int precision = 10;
         io::save_double(plaquette_flat, filename, precision);
     }

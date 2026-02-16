@@ -1,12 +1,14 @@
 #include <iostream>
 
+#include "../flow/gradient_flow.h"
 #include "../gauge/GaugeField.h"
 #include "../heatbath/heatbath_mpi.h"
 #include "../io/io.h"
 #include "../mpi/HalosExchange.h"
-#include "../mpi/Shift.h"
 #include "../mpi/HalosShift.h"
 #include "../mpi/MpiTopology.h"
+#include "../mpi/Shift.h"
+#include "../observables/observables_mpi.h"
 
 void print_parameters(const RunParamsHbCB& rp, const mpi::MpiTopology& topo) {
     if (topo.rank == 0) {
@@ -74,8 +76,7 @@ void generate_hb_cb(const RunParamsHbCB& rp) {
             }
             parity active_parity = even;
             mpi::exchange::exchange_halos_cascade(field, geo, topo);
-            plaquette[i][j][0] =
-                mpi::heatbathcb::samples(field, geo, topo, hp, rng, active_parity);
+            plaquette[i][j][0] = mpi::heatbathcb::samples(field, geo, topo, hp, rng, active_parity);
 
             // Odd parity :
             if (topo.rank == 0) {
@@ -83,12 +84,27 @@ void generate_hb_cb(const RunParamsHbCB& rp) {
             }
             active_parity = odd;
             mpi::exchange::exchange_halos_cascade(field, geo, topo);
-            plaquette[i][j][1] =
-                mpi::heatbathcb::samples(field, geo, topo, hp, rng, active_parity);
+            plaquette[i][j][1] = mpi::heatbathcb::samples(field, geo, topo, hp, rng, active_parity);
         }
 
         // Random shift
         mpi::shift::random_shift(field, geo, halo_shift, topo, rng);
+    }
+
+    //===========================Gradient flow test==========================
+
+    double eps = 0.02;
+    GradientFlow flow(eps, field, geo);
+    int precision = 6;
+    int precision_t = 3;
+    for (double time = 0.0; time < 10.0; time += eps) {
+        flow.rk3_step(topo);
+        auto qe = mpi::observables::topo_q_e_clover_global(flow.field_c, geo, topo);
+        if (topo.rank == 0)
+            std::cout << "t = " << io::format_double(time, precision_t)
+                      << ", Q = " << io::format_double(qe.first, precision)
+                      << ", t²E = " << io::format_double(time * time * qe.second, precision)
+                      << "\n";
     }
 
     //===========================Output======================================

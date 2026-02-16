@@ -41,6 +41,7 @@ add_executable(gauge_ecmc_cb src/bin/gauge_ecmc_cb.cpp
         src/ecmc/ecmc_mpi_cb.cpp
         src/io/params.h
         src/io/io.cpp
+        src/flow/gradient_flow.cpp
 )
 target_link_libraries(gauge_ecmc_cb PRIVATE MPI::MPI_CXX Eigen3::Eigen)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
@@ -73,6 +74,7 @@ add_executable(gauge_hb_cb src/bin/gauge_hb_cb.cpp
         src/heatbath/heatbath_mpi.cpp
         src/io/params.h
         src/io/io.cpp
+        src/flow/gradient_flow.cpp
 )
 target_link_libraries(gauge_hb_cb PRIVATE MPI::MPI_CXX Eigen3::Eigen)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
