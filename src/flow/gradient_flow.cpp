@@ -126,3 +126,7 @@ void GradientFlow::rk3_step(mpi::MpiTopology &topo) {
     compute_w3();
     mpi::exchange::exchange_halos_cascade(field_c, *geo_p, topo);
 }
+
+void GradientFlow::copy(const GaugeField& field) {
+    field_c = field;
+};

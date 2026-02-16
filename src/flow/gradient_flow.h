@@ -9,14 +9,15 @@
 #include "../mpi/MpiTopology.h"
 
 class GradientFlow {
-    double epsilon;
 public:
+    double epsilon;
     GaugeField field_c;
     GaugeField force_0;
     GaugeField force_1;
     const GeometryCB* geo_p;
 
     explicit GradientFlow(double epsilon_, const GaugeField &field, const GeometryCB &geo);
+    void copy(const GaugeField& field);
     void compute_force(int i);
     void compute_w1();
     void compute_w2();
