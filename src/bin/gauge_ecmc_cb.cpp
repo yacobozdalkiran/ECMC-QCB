@@ -2,7 +2,7 @@
 #include <mpi.h>
 
 #include "../gauge/GaugeField.h"
-#include "../mpi/HalosExchange.h"
+#include "../mpi/Shift.h"
 #include "../observables/observables_mpi.h"
 
 int main(int argc, char* argv[]) {
@@ -17,6 +17,7 @@ int main(int argc, char* argv[]) {
 
     int n_core_dims = 2;
     mpi::MpiTopology topo(n_core_dims);
+    HalosShift h(geo);
 
     std::random_device rd;
     std::mt19937_64 rng(rd()+topo.rank);
@@ -26,6 +27,16 @@ int main(int argc, char* argv[]) {
     double p = mpi::observables::mean_plaquette_global(field, geo, topo);
     if (topo.rank == 0){
         std::cout << "P = " << p << "\n";
+        std::cout << "Gauge transform\n";
+    }
+    p = mpi::observables::mean_plaquette_global(field, geo, topo);
+    if (topo.rank == 0){
+        std::cout << "P = " << p <<'\n';
+    }
+    mpi::shift::random_shift(field, geo, h, topo, rng);
+    p = mpi::observables::mean_plaquette_global(field, geo, topo);
+    if (topo.rank == 0){
+        std::cout << "P = " << p <<'\n';
     }
 
     MPI_Finalize();

@@ -7,31 +7,29 @@
 #include "../su3/utils.h"
 
 // Initialises the gauge field with random SU3 matrices
-void GaugeField::hot_start(const GeometryCB &geo, std::mt19937_64& rng) {
-    for (int t = 1; t<=T_int; t++)
-    for (int z = 1; z<=L_int; z++)
-    for (int y = 1; y<=L_int; y++)
-    for (int x = 1; x<=L_int; x++)
-    {
-        size_t site = geo.index(x,y,z,t);
-        for (int mu = 0; mu < 4; mu++) {
-            view_link(site, mu) = random_su3(rng);
-        }
-    }
+void GaugeField::hot_start(const GeometryCB& geo, std::mt19937_64& rng) {
+    for (int t = 1; t <= T_int; t++)
+        for (int z = 1; z <= L_int; z++)
+            for (int y = 1; y <= L_int; y++)
+                for (int x = 1; x <= L_int; x++) {
+                    size_t site = geo.index(x, y, z, t);
+                    for (int mu = 0; mu < 4; mu++) {
+                        view_link(site, mu) = random_su3(rng);
+                    }
+                }
 }
 
 // Initialises the gauge field with identity matrices
-void GaugeField::cold_start(const GeometryCB &geo) {
-    for (int t = 1; t<=T_int; t++)
-    for (int z = 1; z<=L_int; z++)
-    for (int y = 1; y<=L_int; y++)
-    for (int x = 1; x<=L_int; x++)
-    {
-        size_t site = geo.index(x,y,z,t);
-        for (int mu = 0; mu < 4; mu++) {
-            view_link(site, mu) = Eigen::Matrix3cd::Identity();
-        }
-    }
+void GaugeField::cold_start(const GeometryCB& geo) {
+    for (int t = 1; t <= T_int; t++)
+        for (int z = 1; z <= L_int; z++)
+            for (int y = 1; y <= L_int; y++)
+                for (int x = 1; x <= L_int; x++) {
+                    size_t site = geo.index(x, y, z, t);
+                    for (int mu = 0; mu < 4; mu++) {
+                        view_link(site, mu) = Eigen::Matrix3cd::Identity();
+                    }
+                }
 }
 
 // Projects a link on SU3 using Gramm-Schmidt
@@ -60,31 +58,30 @@ void GaugeField::projection_su3(size_t site, int mu) {
 }
 
 // Projects the whole field on SU3
-void GaugeField::project_field_su3(const GeometryCB &geo) {
-    for (int t = 1; t<=T_int; t++)
-    for (int z = 1; z<=L_int; z++)
-    for (int y = 1; y<=L_int; y++)
-    for (int x = 1; x<=L_int; x++)
-    {
-        size_t site = geo.index(x,y,z,t);
-        for (int mu = 0; mu < 4; mu++) {
-            projection_su3(site, mu);
-        }
-    }
+void GaugeField::project_field_su3(const GeometryCB& geo) {
+    for (int t = 1; t <= T_int; t++)
+        for (int z = 1; z <= L_int; z++)
+            for (int y = 1; y <= L_int; y++)
+                for (int x = 1; x <= L_int; x++) {
+                    size_t site = geo.index(x, y, z, t);
+                    for (int mu = 0; mu < 4; mu++) {
+                        projection_su3(site, mu);
+                    }
+                }
 }
 
-//Computes the sum of all staples of a site
-void GaugeField::compute_staple(const GeometryCB &geo, size_t site, int mu, SU3 &staple) const {
+// Computes the sum of all staples of a site
+void GaugeField::compute_staple(const GeometryCB& geo, size_t site, int mu, SU3& staple) const {
     staple.setZero();
     for (int nu = 0; nu < 4; nu++) {
         if (nu == mu) {
             continue;
         }
-        size_t x = site; //x
-        size_t xmu = geo.get_neigh(x,mu,up); //x+mu
-        size_t xnu = geo.get_neigh(x,nu,up); //x+nu
-        size_t xmunu = geo.get_neigh(xmu,nu,down); //x+mu-nu
-        size_t xmnu = geo.get_neigh(x,nu,down); //x-nu
+        size_t x = site;                              // x
+        size_t xmu = geo.get_neigh(x, mu, up);        // x+mu
+        size_t xnu = geo.get_neigh(x, nu, up);        // x+nu
+        size_t xmunu = geo.get_neigh(xmu, nu, down);  // x+mu-nu
+        size_t xmnu = geo.get_neigh(x, nu, down);     // x-nu
         auto U0 = view_link_const(xmu, nu);
         auto U1 = view_link_const(xnu, mu);
         auto U2 = view_link_const(x, nu);
@@ -95,3 +92,16 @@ void GaugeField::compute_staple(const GeometryCB &geo, size_t site, int mu, SU3 
         staple += V0.adjoint() * V1.adjoint() * V2;
     }
 }
+void GaugeField::gauge_transform(const GeometryCB& geo, std::mt19937_64& rng) {
+    GaugeField transform(geo);
+    transform.hot_start(geo, rng);
+    for (int t = 1; t <= T_int; t++)
+        for (int z = 1; z <= L_int; z++)
+            for (int y = 1; y <= L_int; y++)
+                for (int x = 1; x <= L_int; x++) {
+                    size_t site = geo.index(x,y,z,t);
+                    for (int mu = 0; mu < 4; mu++) {
+                        view_link(site, mu) = transform.view_link_const(site, mu) * view_link_const(site, mu) * transform.view_link_const(geo.get_neigh(site, mu, up), mu).adjoint();
+                    }
+                }
+};

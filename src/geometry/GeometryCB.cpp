@@ -41,10 +41,10 @@ GeometryCB::GeometryCB(int L_) {
                     if (x == 0 or y == 0 or z == 0 or t == 0) link_is_frozen = true;
                     if (x == L_ext-1 or y == L_ext-1 or z == L_ext-1 or t == L_ext-1) link_is_frozen = true;
                     for (int mu = 0; mu < 4; mu++) {
-                        if (x == L_int - 1 and mu == 0) link_is_frozen = true;
-                        if (y == L_int - 1 and mu == 1) link_is_frozen = true;
-                        if (z == L_int - 1 and mu == 2) link_is_frozen = true;
-                        if (t == L_int - 1 and mu == 3) link_is_frozen = true;
+                        if (x == L_int and mu == 0) link_is_frozen = true;
+                        if (y == L_int and mu == 1) link_is_frozen = true;
+                        if (z == L_int and mu == 2) link_is_frozen = true;
+                        if (t == L_int and mu == 3) link_is_frozen = true;
                         size_t i = index(x, y, z, t);
                         frozen[index_frozen(i, mu)] = link_is_frozen;
                     }

@@ -57,7 +57,8 @@ public:
 
     void projection_su3(size_t site, int mu);
     void project_field_su3(const GeometryCB &geo);
-    void compute_staple(const GeometryCB &geo, size_t site, int mu, SU3 &staple) const; 
+    void compute_staple(const GeometryCB &geo, size_t site, int mu, SU3 &staple) const;
+    void gauge_transform(const GeometryCB& geo, std::mt19937_64& rng);
 };
 
 #endif  // INC_4D_MPI_GAUGEFIELD_H

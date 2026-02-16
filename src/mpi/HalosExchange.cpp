@@ -1,6 +1,7 @@
 #include "HalosExchange.h"
 
-void mpi::exchange::exchange_halos_cascade(GaugeField& field, const GeometryCB& geo, mpi::MpiTopology& topo) {
+void mpi::exchange::exchange_halos_cascade(GaugeField& field, const GeometryCB& geo,
+                                           mpi::MpiTopology& topo) {
     int min_coord[4] = {1, 1, 1, 1};
     int max_coord[4] = {geo.L_int, geo.L_int, geo.L_int, geo.L_int};
 
@@ -25,21 +26,23 @@ void mpi::exchange::exchange_halos_cascade(GaugeField& field, const GeometryCB& 
         // 3. COMMUNICATIONS MPI (Non-bloquantes)
         MPI_Request reqs[4];
         int rank_up, rank_down;
-        if (dim == 0) {
-            rank_up = topo.xL;
-            rank_down = topo.x0;
-        }
-        if (dim == 1) {
-            rank_up = topo.yL;
-            rank_down = topo.y0;
-        }
-        if (dim == 2) {
-            rank_up = topo.zL;
-            rank_down = topo.z0;
-        }
-        if (dim == 3) {
-            rank_up = topo.tL;
-            rank_down = topo.t0;
+        switch (dim) {
+            case 0:
+                rank_up = topo.xL;
+                rank_down = topo.x0;
+                break;
+            case 1:
+                rank_up = topo.yL;
+                rank_down = topo.y0;
+                break;
+            case 2:
+                rank_up = topo.zL;
+                rank_down = topo.z0;
+                break;
+            case 3:
+                rank_up = topo.tL;
+                rank_down = topo.t0;
+                break;
         }
 
         MPI_Isend(send_up.data(), buffer_size, MPI_DOUBLE_COMPLEX, rank_up, 0, MPI_COMM_WORLD,
@@ -67,8 +70,9 @@ void mpi::exchange::exchange_halos_cascade(GaugeField& field, const GeometryCB& 
     }
 };
 
-void mpi::exchange::pack_face(const GaugeField& field, const GeometryCB& geo, std::vector<Complex>& buffer,
-               int dim, int face_coord, const int min_c[4], const int max_c[4]) {
+void mpi::exchange::pack_face(const GaugeField& field, const GeometryCB& geo,
+                              std::vector<Complex>& buffer, int dim, int face_coord,
+                              const int min_c[4], const int max_c[4]) {
     size_t idx_buf = 0;
     int c[4];  // Coordonnées actuelles [x, y, z, t]
 
@@ -85,7 +89,6 @@ void mpi::exchange::pack_face(const GaugeField& field, const GeometryCB& geo, st
                  c[1] <= (dim == 1 ? face_coord : max_c[1]); ++c[1]) {
                 for (c[0] = (dim == 0 ? face_coord : min_c[0]);
                      c[0] <= (dim == 0 ? face_coord : max_c[0]); ++c[0]) {
-
                     // Si on est sur l'axe de transfert, on ne boucle pas vraiment dessus
                     if (dim == 0 && c[0] != face_coord) continue;
                     if (dim == 1 && c[1] != face_coord) continue;
@@ -97,7 +100,7 @@ void mpi::exchange::pack_face(const GaugeField& field, const GeometryCB& geo, st
 
                     // Copie des 4 liens vers le buffer
                     for (int mu = 0; mu < 4; ++mu) {
-                        Eigen::Map<const SU3> link_map = field.view_link_const(site_idx,mu);
+                        Eigen::Map<const SU3> link_map = field.view_link_const(site_idx, mu);
                         Eigen::Map<SU3> buffer_map(&buffer[idx_buf]);
 
                         buffer_map = link_map;  // Copie la matrice 3x3 d'un coup
@@ -109,8 +112,9 @@ void mpi::exchange::pack_face(const GaugeField& field, const GeometryCB& geo, st
     }
 };
 
-void mpi::exchange::unpack_face(GaugeField& field, const GeometryCB& geo, const std::vector<Complex>& buffer,
-                 int dim, int face_coord, const int min_c[4], const int max_c[4]) {
+void mpi::exchange::unpack_face(GaugeField& field, const GeometryCB& geo,
+                                const std::vector<Complex>& buffer, int dim, int face_coord,
+                                const int min_c[4], const int max_c[4]) {
     size_t idx_buf = 0;
     int c[4];  // Tableau pour stocker [x, y, z, t] en cours
 
@@ -132,7 +136,7 @@ void mpi::exchange::unpack_face(GaugeField& field, const GeometryCB& geo, const 
 
                     // 2. Déchargement du buffer vers les 4 liens du site
                     for (int mu = 0; mu < 4; ++mu) {
-                        Eigen::Map<SU3> link_map = field.view_link(site_idx,mu);
+                        Eigen::Map<SU3> link_map = field.view_link(site_idx, mu);
                         Eigen::Map<const SU3> buffer_map(&buffer[idx_buf]);
 
                         link_map = buffer_map;  // Copie la matrice 3x3 d'un coup
