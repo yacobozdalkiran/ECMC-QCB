@@ -136,3 +136,58 @@ void proj_lie_su3(SU3& A) {
 // Returns the exponential of a lie algebra su(3) matrix Z
 // Eigen impl for prototyping at first
 SU3 exp_analytic(const SU3& Z, double coeff) { return (Z * coeff).exp(); }
+
+/**
+ * Calcule l'exponentielle d'une matrice X appartenant à l'algèbre su(3).
+ * X doit être anti-hermitienne et de trace nulle.
+ * La méthode repose sur le schéma de Horner de Lüscher (Cayley-Hamilton).
+ */
+SU3 exp_su3_luscher(const SU3& Z, double coeff) {
+    using namespace std::complex_literals;
+    SU3 X = coeff*Z;
+    // 1. Calcul des invariants invariants t et d
+    // t = -1/2 * tr(X^2)
+    // d = i * det(X)
+    double t = -0.5 * (X * X).trace().real();
+    double d = (1.0i * X.determinant()).real();
+    if (t > 1.0) {
+        std::cerr << "Warning : ||X|| > 1, unstable exp\n";
+    }
+    // 2. Choix du degré N du polynôme [cite: 361]
+    // Pour une précision double (DBL_EPSILON), N=18 est suffisant.
+    const int N = 18;
+
+    // 3. Calcul des coefficients de Taylor c_n = 1/n! [cite: 343]
+    // On peut les pré-calculer ou les calculer à la volée.
+    double c[N + 1];
+    c[0] = 1.0;
+    for (int n = 1; n <= N; ++n) {
+        c[n] = c[n - 1] / static_cast<double>(n);
+    }
+
+    // 4. Schéma de récurrence (Horner) [cite: 348, 349]
+    // q_n = q_{n,0} + q_{n,1}*X + q_{n,2}*X^2
+    std::complex<double> q0, q1, q2;
+
+    // Initialisation au rang N
+    q0 = c[N];
+    q1 = 0.0;
+    q2 = 0.0;
+
+    // Boucle de N-1 à 0 [cite: 349]
+    for (int n = N - 1; n >= 0; --n) {
+        std::complex<double> q0_next = c[n] - 1.0i * d * q2;
+        std::complex<double> q1_next = q0 - t * q2;
+        std::complex<double> q2_next = q1;
+
+        q0 = q0_next;
+        q1 = q1_next;
+        q2 = q2_next;
+    }
+
+    // 5. Reconstruction de la matrice finale exp(X) = q0*I + q1*X + q2*X^2 [cite: 327, 347]
+    SU3 Id = SU3::Identity();
+    SU3 X2 = X * X;
+
+    return q0 * Id + q1 * X + q2 * X2;
+}

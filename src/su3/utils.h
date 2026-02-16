@@ -41,4 +41,5 @@ inline int dsign(double x) {
 }
 void proj_lie_su3(SU3& A);
 SU3 exp_analytic(const SU3& Z, double coeff);
+SU3 exp_su3_luscher(const SU3& Z, double coeff);
 #endif  // INC_4D_MPI_UTILS_H
