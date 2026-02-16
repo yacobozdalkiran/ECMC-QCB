@@ -1,6 +1,6 @@
 #include "HalosExchange.h"
 
-void exchange_halos_cascade(GaugeField& field, const GeometryCB& geo, mpi::MpiTopology& topo) {
+void mpi::exchange::exchange_halos_cascade(GaugeField& field, const GeometryCB& geo, mpi::MpiTopology& topo) {
     int min_coord[4] = {1, 1, 1, 1};
     int max_coord[4] = {geo.L_int, geo.L_int, geo.L_int, geo.L_int};
 
@@ -67,7 +67,7 @@ void exchange_halos_cascade(GaugeField& field, const GeometryCB& geo, mpi::MpiTo
     }
 };
 
-void pack_face(const GaugeField& field, const GeometryCB& geo, std::vector<Complex>& buffer,
+void mpi::exchange::pack_face(const GaugeField& field, const GeometryCB& geo, std::vector<Complex>& buffer,
                int dim, int face_coord, const int min_c[4], const int max_c[4]) {
     size_t idx_buf = 0;
     int c[4];  // Coordonnées actuelles [x, y, z, t]
@@ -77,17 +77,14 @@ void pack_face(const GaugeField& field, const GeometryCB& geo, std::vector<Compl
 
     // Boucles sur les autres dimensions
     // L'ordre t, z, y, x est respecté pour optimiser le cache mémoire
-    for (c[3] = min_c[3]; c[3] <= max_c[3]; ++c[3]) {
-        if (dim == 3) c[3] = face_coord;  // Force la face si dim=T
-
-        for (c[2] = min_c[2]; c[2] <= max_c[2]; ++c[2]) {
-            if (dim == 2) c[2] = face_coord;  // Force la face si dim=Z
-
-            for (c[1] = min_c[1]; c[1] <= max_c[1]; ++c[1]) {
-                if (dim == 1) c[1] = face_coord;  // Force la face si dim=Y
-
-                for (c[0] = min_c[0]; c[0] <= max_c[0]; ++c[0]) {
-                    if (dim == 0) c[0] = face_coord;  // Force la face si dim=X
+    for (c[3] = (dim == 3 ? face_coord : min_c[3]); c[3] <= (dim == 3 ? face_coord : max_c[3]);
+         ++c[3]) {
+        for (c[2] = (dim == 2 ? face_coord : min_c[2]); c[2] <= (dim == 2 ? face_coord : max_c[2]);
+             ++c[2]) {
+            for (c[1] = (dim == 1 ? face_coord : min_c[1]);
+                 c[1] <= (dim == 1 ? face_coord : max_c[1]); ++c[1]) {
+                for (c[0] = (dim == 0 ? face_coord : min_c[0]);
+                     c[0] <= (dim == 0 ? face_coord : max_c[0]); ++c[0]) {
 
                     // Si on est sur l'axe de transfert, on ne boucle pas vraiment dessus
                     if (dim == 0 && c[0] != face_coord) continue;
@@ -112,7 +109,7 @@ void pack_face(const GaugeField& field, const GeometryCB& geo, std::vector<Compl
     }
 };
 
-void unpack_face(GaugeField& field, const GeometryCB& geo, const std::vector<Complex>& buffer,
+void mpi::exchange::unpack_face(GaugeField& field, const GeometryCB& geo, const std::vector<Complex>& buffer,
                  int dim, int face_coord, const int min_c[4], const int max_c[4]) {
     size_t idx_buf = 0;
     int c[4];  // Tableau pour stocker [x, y, z, t] en cours
