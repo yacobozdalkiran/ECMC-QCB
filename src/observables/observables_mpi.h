@@ -1,7 +1,3 @@
-//
-// Created by ozdalkiran-l on 1/8/26.
-//
-
 #ifndef INC_4D_MPI_OBSERVABLES_H
 #define INC_4D_MPI_OBSERVABLES_H
 

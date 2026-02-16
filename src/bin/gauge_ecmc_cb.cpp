@@ -8,6 +8,7 @@
 #include "../mpi/HalosShift.h"
 #include "../mpi/Shift.h"
 #include "../mpi/HalosExchange.h"
+#include "../observables/observables_mpi.h"
 
 void print_parameters(const RunParamsECB& rp, const mpi::MpiTopology& topo) {
     if (topo.rank == 0) {
@@ -73,6 +74,10 @@ void generate_ecmc_cb(const RunParamsECB& rp) {
             }
             parity active_parity = even;
             mpi::exchange::exchange_halos_cascade(field, geo, topo);
+            auto qe = mpi::observables::topo_q_e_clover_global(field, geo, topo);
+            if (topo.rank == 0){
+                std::cout << "Q = " << qe.first << ", E = " << qe.second << '\n';
+            }
             plaquette[i][j][0] =
                 mpi::ecmccb::samples_improved(field, geo, ep, rng, topo, active_parity);
 
@@ -82,6 +87,10 @@ void generate_ecmc_cb(const RunParamsECB& rp) {
             }
             active_parity = odd;
             mpi::exchange::exchange_halos_cascade(field, geo, topo);
+            qe = mpi::observables::topo_q_e_clover_global(field, geo, topo);
+            if (topo.rank == 0){
+                std::cout << "Q = " << qe.first << ", E = " << qe.second << '\n';
+            }
             plaquette[i][j][1] =
                 mpi::ecmccb::samples_improved(field, geo, ep, rng, topo, active_parity);
         }
