@@ -1,7 +1,7 @@
 L_core=4
 n_core_dims=2
 cold_start=false
-N_shift=100
+N_shift=500
 N_switch_eo=2
 seed=12345
 

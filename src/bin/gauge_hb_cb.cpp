@@ -101,10 +101,12 @@ void generate_hb_cb(const RunParamsHbCB& rp) {
     }
     double eps = 0.02;
     GradientFlow flow(eps, field, geo);
-    mpi::observables::topo_charge_flowed(field, geo, flow, topo);
+    int N_steps_tot = 400;
+    int N_step_meas = 40;
+    mpi::observables::topo_charge_flowed(field, geo, flow, topo, N_steps_tot, N_step_meas);
 
     // Save conf
-    std::string filename = "data/conf.ildg";
+    std::string filename = "data/conf_hb.ildg";
     save_ildg_clime(filename, field, geo, topo);
     if (topo.rank == 0) {
         std::cout << "Conf saved at " + filename + "\n";
@@ -119,7 +121,7 @@ void generate_hb_cb(const RunParamsHbCB& rp) {
     }
     eps = 0.02;
     GradientFlow flow2(eps, field2, geo);
-    mpi::observables::topo_charge_flowed(field2, geo, flow2, topo);
+    mpi::observables::topo_charge_flowed(field, geo, flow, topo, N_steps_tot, N_step_meas);
 
     //===========================Output======================================
 

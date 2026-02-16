@@ -147,27 +147,21 @@ std::pair<double, double> mpi::observables::topo_q_e_clover_global(const GaugeFi
 };
 
 double mpi::observables::topo_charge_flowed(GaugeField& field, const GeometryCB& geo,
-                                            GradientFlow& gf, mpi::MpiTopology& topo) {
+                                            GradientFlow& gf, mpi::MpiTopology& topo, int N_steps_tot, int N_steps_meas) {
     mpi::exchange::exchange_halos_cascade(field, geo, topo);
     double Q = 0.0;
     gf.copy(field);
     double t = 0.0;
-    bool t_lim_attained = false;
-    int steps = 0;
     int p = 6;
     int pt = 2;
-    while (!(t_lim_attained)) {
+    for (int steps = 0; steps<N_steps_tot; steps++){
         gf.rk3_step(topo);
-        if (steps % 25 == 0) {
+        if (steps % N_steps_meas == 0) {
             auto qe = topo_q_e_clover_global(gf.field_c, geo, topo);
             if (topo.rank == 0) {
                 std::cout << "n = " << steps << ", t = " << io::format_double(t, pt)
                           << ", Q = " << io::format_double(qe.first, p)
                           << ", t²E = " << io::format_double(t * t * qe.second, p) << "\n";
-            }
-            if ((t * t * qe.second > 0.4) or (sqrt(8*t)>geo.L_int*topo.n_core_dim)) {
-                Q = qe.first;
-                t_lim_attained = true;
             }
         }
         t += gf.epsilon;
