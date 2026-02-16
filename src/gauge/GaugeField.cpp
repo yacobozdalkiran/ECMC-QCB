@@ -7,8 +7,13 @@
 #include "../su3/utils.h"
 
 // Initialises the gauge field with random SU3 matrices
-void GaugeField::hot_start(std::mt19937_64& rng) {
-    for (size_t site = 0; site < V_ext; site++) {
+void GaugeField::hot_start(const GeometryCB &geo, std::mt19937_64& rng) {
+    for (int t = 1; t<=T_int; t++)
+    for (int z = 1; z<=L_int; z++)
+    for (int y = 1; y<=L_int; y++)
+    for (int x = 1; x<=L_int; x++)
+    {
+        size_t site = geo.index(x,y,z,t);
         for (int mu = 0; mu < 4; mu++) {
             view_link(site, mu) = random_su3(rng);
         }
@@ -16,8 +21,13 @@ void GaugeField::hot_start(std::mt19937_64& rng) {
 }
 
 // Initialises the gauge field with identity matrices
-void GaugeField::cold_start() {
-    for (size_t site = 0; site < V_ext; site++) {
+void GaugeField::cold_start(const GeometryCB &geo) {
+    for (int t = 1; t<=T_int; t++)
+    for (int z = 1; z<=L_int; z++)
+    for (int y = 1; y<=L_int; y++)
+    for (int x = 1; x<=L_int; x++)
+    {
+        size_t site = geo.index(x,y,z,t);
         for (int mu = 0; mu < 4; mu++) {
             view_link(site, mu) = Eigen::Matrix3cd::Identity();
         }

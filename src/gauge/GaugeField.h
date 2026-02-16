@@ -28,12 +28,12 @@ public:
 
     // Initializes a squared cold gauge conf with halos
     explicit GaugeField(const GeometryCB& geo)
-        : L_ext(geo.L+2),
-          L_int(geo.L),
-          T_ext(geo.L+2),
-          T_int(geo.L),
-          V_ext(L_ext*L_ext*L_ext*L_ext),
-          V_int(geo.V),
+        : L_ext(geo.L_ext),
+          L_int(geo.L_int),
+          T_ext(geo.L_ext),
+          T_int(geo.L_int),
+          V_ext(geo.V_ext),
+          V_int(geo.V_int),
           links(V_ext * 4 * 9, Complex(0.0, 0.0)) {
         for (size_t site = 0; site < V_ext; site++) {
             for (int mu = 0; mu < 4; mu++) {
@@ -42,8 +42,8 @@ public:
         }
     }
 
-    void hot_start(std::mt19937_64& rng);
-    void cold_start();
+    void hot_start(const GeometryCB& geo, std::mt19937_64& rng);
+    void cold_start(const GeometryCB& geo);
 
     // Non const mapping of links to SU3 matrices
     Eigen::Map<SU3> view_link(size_t site, int mu) {
