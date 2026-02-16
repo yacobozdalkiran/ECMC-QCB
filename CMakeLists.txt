@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 project(ECMC_QCB)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(MPI REQUIRED)
@@ -38,6 +38,9 @@ add_executable(gauge_ecmc_cb src/bin/gauge_ecmc_cb.cpp
         src/mpi/HalosExchange.cpp
         src/observables/observables_mpi.cpp
         src/mpi/Shift.cpp
+        src/ecmc/ecmc_mpi_cb.cpp
+        src/io/params.h
+        src/io/io.cpp
 )
 
 

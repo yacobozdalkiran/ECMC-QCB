@@ -32,7 +32,6 @@ double mpi::observables::mean_plaquette_local(const GaugeField& field, const Geo
 
 //Computation of global mean plaquette with halos embedded in field (needs field halos exchanges first)
 double mpi::observables::mean_plaquette_global(GaugeField &field, const GeometryCB &geo, MpiTopology &topo){
-    mpi::exchange::exchange_halos_cascade(field, geo, topo);
     double local_mean_plaquette = mean_plaquette_local(field, geo);
     double global_mean_plaquette = 0.0;
     MPI_Allreduce(&local_mean_plaquette, &global_mean_plaquette, 1, MPI_DOUBLE, MPI_SUM,
