@@ -15,7 +15,7 @@ std::pair<double, double> local_q_e_clover(const GaugeField& field, const Geomet
 std::pair<double, double> topo_q_e_clover(const GaugeField& field, const GeometryCB& geo);
 std::pair<double, double> topo_q_e_clover_global(const GaugeField& field, const GeometryCB& geo,
                                                  MpiTopology& topo);
-double topo_charge_flowed(GaugeField& field, const GeometryCB& geo, GradientFlow& gf, mpi::MpiTopology& topo, int N_steps_tot, int N_steps_meas);
+std::vector<double> topo_charge_flowed(GaugeField& field, const GeometryCB& geo, GradientFlow& gf, mpi::MpiTopology& topo, int N_steps_gf, int N_rk_steps);
 }  // namespace mpi::observables
 
 #endif  // INC_4D_MPI_OBSERVABLES_H
