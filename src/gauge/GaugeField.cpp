@@ -92,6 +92,8 @@ void GaugeField::compute_staple(const GeometryCB& geo, size_t site, int mu, SU3&
         staple += V0.adjoint() * V1.adjoint() * V2;
     }
 }
+
+//Performs a random gauge_transform on the field
 void GaugeField::gauge_transform(const GeometryCB& geo, std::mt19937_64& rng) {
     GaugeField transform(geo);
     transform.hot_start(geo, rng);

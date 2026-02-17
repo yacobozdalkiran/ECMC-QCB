@@ -7,6 +7,7 @@
 #include "../observables/observables_mpi.h"
 #include "heatbath.h"
 
+//Performs a Heatbath hit on a link using the Cabbibo-Marinari algorithm
 void mpi::heatbathcb::hit(GaugeField& field, const GeometryCB& geo, size_t site, int mu,
                           double beta, SU3& A, std::mt19937_64& rng) {
     field.compute_staple(geo, site, mu, A);
@@ -32,6 +33,7 @@ void mpi::heatbathcb::hit(GaugeField& field, const GeometryCB& geo, size_t site,
     field.view_link(site, mu) = R * field.view_link(site, mu);
 }
 
+//Performs a Heatbath sweep on the non-frozen links
 void mpi::heatbathcb::sweep(GaugeField& field, const GeometryCB& geo, double beta, int N_hits,
                             std::mt19937_64& rng) {
     SU3 A;
@@ -53,6 +55,7 @@ void mpi::heatbathcb::sweep(GaugeField& field, const GeometryCB& geo, double bet
     }
 }
 
+//Generates Heatbath samples according to input parameters
 std::vector<double> mpi::heatbathcb::samples(GaugeField& field, const GeometryCB& geo,
                                              MpiTopology& topo, const HbParams& params,
                                              std::mt19937_64& rng, parity active_parity) {

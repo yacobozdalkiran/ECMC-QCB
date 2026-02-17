@@ -16,8 +16,8 @@ extern "C" {
 
 namespace fs = std::filesystem;
 
-// Saves a vector of doubles in ../data/filename.txt
-void io::save_double(const std::vector<double>& data, const std::string& filename, int precision) {
+// Saves a vector of doubles in ../data/filename/filename_plaquette.txt
+void io::save_plaquette(const std::vector<double>& data, const std::string& filename, int precision) {
     // Create a data folder if doesn't exists
     fs::path base_dir("data");
     fs::path dir = base_dir / filename;
@@ -45,6 +45,7 @@ void io::save_double(const std::vector<double>& data, const std::string& filenam
     std::cout << "Plaquette written in " << filepath << "\n";
 }
 
+//Saves the tQE vector into data/filename/filename_topo.txt
 void io::save_topo(const std::vector<double>& tQE, const std::string& filename, int precision) {
     // Create a data folder if doesn't exists
     fs::path base_dir("data");
@@ -73,6 +74,7 @@ void io::save_topo(const std::vector<double>& tQE, const std::string& filename, 
     std::cout << "Topology written in " << filepath << "\n";
 };
 
+//Saves the Mersenne Twister states into data/filename/filename_seed/filename_seed[rank].txt
 void io::save_seed(std::mt19937_64& rng, const std::string& filename, mpi::MpiTopology& topo) {
     // Create a data folder if doesn't exists
     fs::path base_dir("data");
@@ -104,6 +106,7 @@ void io::save_seed(std::mt19937_64& rng, const std::string& filename, mpi::MpiTo
     }
 };
 
+//Saves the run params into data/filename/filename_params.txt
 void io::save_params(const RunParamsHbCB& rp, const std::string& filename) {
     // Create a data/run_name folder if doesn't exists
     fs::path base_dir("data");
@@ -160,6 +163,7 @@ std::string io::trim(const std::string& s) {
     return s.substr(first, (last - first + 1));
 }
 
+//Loads the params contained in filename into rp
 void io::load_params(const std::string& filename, RunParamsECB& rp) {
     std::ifstream file(filename);
     if (!file.is_open()) throw std::runtime_error("Impossible d'ouvrir " + filename);
@@ -207,6 +211,7 @@ void io::load_params(const std::string& filename, RunParamsECB& rp) {
     if (config.count("run_name")) rp.run_name = config["run_name"];
 }
 
+//Loads the params contained in filename into rp
 void io::load_params(const std::string& filename, RunParamsHbCB& rp) {
     std::ifstream file(filename);
     if (!file.is_open()) throw std::runtime_error("Can't open file " + filename);
@@ -250,6 +255,7 @@ void io::load_params(const std::string& filename, RunParamsHbCB& rp) {
     if (config.count("run_name")) rp.run_name = config["run_name"];
 }
 
+//Print parameters of the run
 void print_parameters(const RunParamsHbCB& rp, const mpi::MpiTopology& topo) {
     if (topo.rank == 0) {
         std::cout << "==========================================" << std::endl;
@@ -270,12 +276,14 @@ void print_parameters(const RunParamsHbCB& rp, const mpi::MpiTopology& topo) {
     }
 }
 
+//Print time
 void print_time(long elapsed) {
     std::cout << "==========================================" << std::endl;
     std::cout << "Elapsed time : " << elapsed << "s\n";
     std::cout << "==========================================" << std::endl;
 }
 
+//to_string for double with a fixed precision
 std::string io::format_double(double val, int precision) {
     std::stringstream ss;
     ss << std::fixed << std::setprecision(precision) << val;
@@ -345,6 +353,8 @@ bool io::read_params(RunParamsHbCB& params, int rank, const std::string& input) 
         return false;
     }
 }
+
+
 void print_parameters(const RunParamsECB& rp, const mpi::MpiTopology& topo) {
     if (topo.rank == 0) {
         std::cout << "==========================================" << std::endl;

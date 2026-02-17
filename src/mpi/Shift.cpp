@@ -2,6 +2,7 @@
 
 #include "HalosExchange.h"
 
+//Packing into buffers
 void mpi::shift::pack_shift_slice(const GaugeField& field, const GeometryCB& geo,
                                   std::vector<Complex>& buffer, int dim, int start, int end) {
     size_t idx_buf = 0;
@@ -33,6 +34,7 @@ void mpi::shift::pack_shift_slice(const GaugeField& field, const GeometryCB& geo
     }
 }
 
+//Unpacking into the field
 void mpi::shift::unpack_shift_slice(GaugeField& field, const GeometryCB& geo,
                                     const std::vector<Complex>& buffer, int dim, int start,
                                     int end) {
@@ -62,6 +64,7 @@ void mpi::shift::unpack_shift_slice(GaugeField& field, const GeometryCB& geo,
     }
 }
 
+//Local shift of the field
 void mpi::shift::apply_local_shift(GaugeField& field, const GeometryCB& geo, int dim, int s) {
     if (s == 0) return;  // Rien à faire
 
@@ -154,6 +157,8 @@ void mpi::shift::shift_field(GaugeField& field, const GeometryCB& geo, HalosShif
         unpack_shift_slice(field, geo, h.recv, dim, 1, shift);
     }
 }
+
+//Performs a random shift
 void mpi::shift::random_shift(GaugeField& field, const GeometryCB& geo, HalosShift& h,
                               mpi::MpiTopology& topo, std::mt19937_64& rng) {
     int shift_x{}, shift_y{}, shift_z{}, shift_t{};

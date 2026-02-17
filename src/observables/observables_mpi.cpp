@@ -41,6 +41,7 @@ double mpi::observables::mean_plaquette_global(GaugeField& field, const Geometry
     return global_mean_plaquette;
 }
 
+//Computation of levi-civita tensor
 int mpi::observables::levi_civita(int mu, int nu, int rho, int sigma) {
     // A stocker dans un tableau
     if (mu == nu || mu == rho || mu == sigma || nu == rho || nu == sigma || rho == sigma) return 0;
@@ -124,6 +125,7 @@ std::pair<double, double> mpi::observables::topo_q_e_clover(const GaugeField& fi
     return {q, e};
 }
 
+//Returns topological charge and energy density of the whole lattice
 std::pair<double, double> mpi::observables::topo_q_e_clover_global(const GaugeField& field,
                                                                    const GeometryCB& geo,
                                                                    MpiTopology& topo) {

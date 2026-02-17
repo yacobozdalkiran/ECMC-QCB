@@ -1,14 +1,13 @@
 #include "GeometryCB.h"
 
 #include <cstdint>
-
+//Initializes the precomputed tables neighbors, frozen and list_staples
 GeometryCB::GeometryCB(int L_) {
     L_int = L_;
     V_int = L_int * L_int * L_int * L_int;
     L_ext = L_int + 2;
     V_ext = L_ext * L_ext * L_ext * L_ext;
     neighbors.resize((V_ext) * 8, SIZE_MAX);
-    // On étend la boucle de 0 à L_ext pour couvrir la "coquille" des halos
     for (int t = 0; t < L_ext; t++) {
         for (int z = 0; z < L_ext; z++) {
             for (int y = 0; y < L_ext; y++) {

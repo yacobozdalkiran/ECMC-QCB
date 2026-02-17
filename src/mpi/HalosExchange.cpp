@@ -1,5 +1,6 @@
 #include "HalosExchange.h"
 
+//Exchanges the halos between cores in cascade (for corners)
 void mpi::exchange::exchange_halos_cascade(GaugeField& field, const GeometryCB& geo,
                                            mpi::MpiTopology& topo) {
     int min_coord[4] = {1, 1, 1, 1};
@@ -70,6 +71,7 @@ void mpi::exchange::exchange_halos_cascade(GaugeField& field, const GeometryCB& 
     }
 };
 
+//Face packing into buffers
 void mpi::exchange::pack_face(const GaugeField& field, const GeometryCB& geo,
                               std::vector<Complex>& buffer, int dim, int face_coord,
                               const int min_c[4], const int max_c[4]) {
@@ -112,6 +114,7 @@ void mpi::exchange::pack_face(const GaugeField& field, const GeometryCB& geo,
     }
 };
 
+//Face unpacking into field
 void mpi::exchange::unpack_face(GaugeField& field, const GeometryCB& geo,
                                 const std::vector<Complex>& buffer, int dim, int face_coord,
                                 const int min_c[4], const int max_c[4]) {

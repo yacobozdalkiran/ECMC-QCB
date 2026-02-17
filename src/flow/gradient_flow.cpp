@@ -10,7 +10,7 @@
 GradientFlow::GradientFlow(double epsilon_, const GaugeField& field, const GeometryCB& geo)
     : epsilon(epsilon_), field_c(field), force_0(field), force_1(field), geo_p(&geo) {}
 
-// Updates the force field according to staples and links of field_c, into force_0 or force_1
+// Updates the force field according to staples and links of field_c, into force0 or force1
 // depending on i
 void GradientFlow::compute_force(int i) {
     SU3 staple{};
@@ -127,6 +127,7 @@ void GradientFlow::rk3_step(mpi::MpiTopology &topo) {
     mpi::exchange::exchange_halos_cascade(field_c, *geo_p, topo);
 }
 
+//Copies the content of field into field_c
 void GradientFlow::copy(const GaugeField& field) {
     field_c = field;
 };

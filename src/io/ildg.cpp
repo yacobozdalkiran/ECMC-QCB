@@ -192,7 +192,6 @@ void read_ildg_clime(const std::string& filename,
                 for (int x = 1; x <= geo.L_int; ++x) {
                     
                     size_t site = geo.index(x, y, z, t);
-                    auto link_view = field.view_link(site, 0); // On accède via Eigen Map
 
                     for (int mu = 0; mu < 4; ++mu) {
                         for (int i = 0; i < 3; ++i) {
