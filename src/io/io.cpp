@@ -142,8 +142,7 @@ void io::save_params(const RunParamsHbCB& rp, const std::string& filename) {
     file << "N_shift_topo = " << rp.N_shift_topo << "\n";
     file << "N_steps_gf = " << rp.N_steps_gf << "\n";
     file << "N_rk_steps = " << rp.N_rk_steps << "\n\n";
-
-    file << "run_name = " << rp.run_name << "\n";
+    file << "#########################################################\n\n";
 
     file.close();
     std::cout << "Parameters saved in " << filepath << "\n";

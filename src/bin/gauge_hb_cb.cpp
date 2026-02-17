@@ -156,7 +156,9 @@ void generate_hb_cb(const RunParamsHbCB& rp, bool existing) {
         // Write the output
         int precision = 10;
         io::save_double(plaquette, rp.run_name, precision);
-        io::save_topo(tQE_tot, rp.run_name, precision);
+        if (rp.topo){
+            io::save_topo(tQE_tot, rp.run_name, precision);
+        }
         io::save_params(rp, rp.run_name);
     }
     //Save seeds
