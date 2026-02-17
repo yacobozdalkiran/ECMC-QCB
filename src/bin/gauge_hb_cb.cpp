@@ -31,9 +31,9 @@ void generate_hb_cb(const RunParamsHbCB& rp, bool existing) {
     }
 
     if (existing) {
-        read_ildg_clime("data/"+rp.run_name, field, geo, topo);
-        fs::path state_path =
-            fs::path("data/"+rp.run_name+"_seed") / (rp.run_name + "_seed" + std::to_string(topo.rank) + ".txt");
+        read_ildg_clime("data/" + rp.run_name + "/" + rp.run_name, field, geo, topo);
+        fs::path state_path = fs::path("data/" + rp.run_name + "/" + rp.run_name + "_seed") /
+                              (rp.run_name + "_seed" + std::to_string(topo.rank) + ".txt");
         std::ifstream ifs(state_path);
         if (ifs.is_open()) {
             ifs >> rng;  // On ignore la seed initiale, on reprend l'état exactement
@@ -75,7 +75,6 @@ void generate_hb_cb(const RunParamsHbCB& rp, bool existing) {
 
     // Print params
     print_parameters(rp, topo);
-
 
     //==============================Heatbath Checkboard===========================
 
@@ -156,15 +155,15 @@ void generate_hb_cb(const RunParamsHbCB& rp, bool existing) {
         // Write the output
         int precision = 10;
         io::save_double(plaquette, rp.run_name, precision);
-        if (rp.topo){
+        if (rp.topo) {
             io::save_topo(tQE_tot, rp.run_name, precision);
         }
         io::save_params(rp, rp.run_name);
     }
-    //Save seeds
+    // Save seeds
     io::save_seed(rng, rp.run_name, topo);
     // Save conf
-    save_ildg_clime("data/" + rp.run_name, field, geo, topo);
+    save_ildg_clime("data/" + rp.run_name + "/" + rp.run_name, field, geo, topo);
 }
 
 int main(int argc, char* argv[]) {

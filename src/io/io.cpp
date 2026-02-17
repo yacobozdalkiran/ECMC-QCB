@@ -19,7 +19,8 @@ namespace fs = std::filesystem;
 // Saves a vector of doubles in ../data/filename.txt
 void io::save_double(const std::vector<double>& data, const std::string& filename, int precision) {
     // Create a data folder if doesn't exists
-    fs::path dir("data");
+    fs::path base_dir("data");
+    fs::path dir = base_dir / filename;
 
     try {
         if (!fs::exists(dir)) {
@@ -46,7 +47,8 @@ void io::save_double(const std::vector<double>& data, const std::string& filenam
 
 void io::save_topo(const std::vector<double>& tQE, const std::string& filename, int precision) {
     // Create a data folder if doesn't exists
-    fs::path dir("data");
+    fs::path base_dir("data");
+    fs::path dir = base_dir / filename;
 
     try {
         if (!fs::exists(dir)) {
@@ -75,7 +77,8 @@ void io::save_seed(std::mt19937_64& rng, const std::string& filename, mpi::MpiTo
     // Create a data folder if doesn't exists
     fs::path base_dir("data");
     fs::path run_dir =
-        base_dir / (filename + "_seed");  // Utilise l'opérateur / pour gérer les slashs proprement
+        base_dir / filename /
+        (filename + "_seed");  // Utilise l'opérateur / pour gérer les slashs proprement
 
     try {
         // create_directories crée "data" PUIS "data/run_name" si nécessaire
@@ -102,8 +105,9 @@ void io::save_seed(std::mt19937_64& rng, const std::string& filename, mpi::MpiTo
 };
 
 void io::save_params(const RunParamsHbCB& rp, const std::string& filename) {
-    // Create a data folder if doesn't exists
-    fs::path dir("data");
+    // Create a data/run_name folder if doesn't exists
+    fs::path base_dir("data");
+    fs::path dir = base_dir / filename;
 
     try {
         if (!fs::exists(dir)) {
@@ -327,9 +331,9 @@ bool io::read_params(RunParamsHbCB& params, int rank, const std::string& input) 
     if (name_len > 0) {
         MPI_Bcast(&params.run_name[0], name_len, MPI_CHAR, 0, MPI_COMM_WORLD);
     }
-    bool local_existing = fs::exists("data/" + params.run_name) and
-                          fs::exists("data/" + params.run_name + "_seed/" + params.run_name +
-                                     "_seed" + std::to_string(rank) + ".txt");
+    bool local_existing = fs::exists("data/" + params.run_name + "/" + params.run_name) and
+                          fs::exists("data/" + params.run_name + "/" + params.run_name + "_seed/" +
+                                     params.run_name + "_seed" + std::to_string(rank) + ".txt");
     bool global_existing;
     // On vérifie que TOUS les processus ont trouvé leurs fichiers
     MPI_Allreduce(&local_existing, &global_existing, 1, MPI_C_BOOL, MPI_LAND, MPI_COMM_WORLD);
@@ -361,7 +365,8 @@ void print_parameters(const RunParamsECB& rp, const mpi::MpiTopology& topo) {
 
 void io::save_params(const RunParamsECB& rp, const std::string& filename) {
     // Create a data folder if doesn't exists
-    fs::path dir("data");
+    fs::path base_dir("data");
+    fs::path dir = base_dir / filename;
 
     try {
         if (!fs::exists(dir)) {
@@ -459,9 +464,9 @@ bool io::read_params(RunParamsECB& params, int rank, const std::string& input) {
 
     // 4. Vérification de l'existence des fichiers pour la reprise (Resume)
     // On utilise std::filesystem (fs) comme dans ton exemple
-    bool local_existing = fs::exists("data/" + params.run_name) &&
-                          fs::exists("data/" + params.run_name + "_seed/" + params.run_name +
-                                     "_seed" + std::to_string(rank) + ".txt");
+    bool local_existing = fs::exists("data/" + params.run_name + "/" + params.run_name) and
+                          fs::exists("data/" + params.run_name + "/" + params.run_name + "_seed/" +
+                                     params.run_name + "_seed" + std::to_string(rank) + ".txt");
 
     bool global_existing;
     // On s'assure que tout le monde est d'accord pour reprendre
