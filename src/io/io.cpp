@@ -75,7 +75,7 @@ void io::save_seed(std::mt19937_64& rng, const std::string& filename, mpi::MpiTo
     // Create a data folder if doesn't exists
     fs::path base_dir("data");
     fs::path run_dir =
-        base_dir / (filename+"_seed");  // Utilise l'opérateur / pour gérer les slashs proprement
+        base_dir / (filename + "_seed");  // Utilise l'opérateur / pour gérer les slashs proprement
 
     try {
         // create_directories crée "data" PUIS "data/run_name" si nécessaire
@@ -276,4 +276,68 @@ std::string io::format_double(double val, int precision) {
     std::stringstream ss;
     ss << std::fixed << std::setprecision(precision) << val;
     return ss.str();
+}
+
+// Reads the parameters of input file into RunParams struct
+// Returns true if the necessary files are found
+bool io::read_params(RunParamsHbCB& params, int rank, const std::string& input) {
+    if (rank == 0) {
+        try {
+            io::load_params(input, params);
+        } catch (const std::exception& e) {
+            std::cerr << "Error reading input : " << e.what() << std::endl;
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
+    }
+    // 1. Diffusion des paramètres numériques (Lattice + Run + Topo)
+    // On diffuse les blocs un par un pour plus de clarté et de sécurité
+    MPI_Bcast(&params.L_core, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&params.n_core_dims, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&params.cold_start, 1, MPI_C_BOOL, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&params.N_switch_eo, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&params.N_shift, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&params.seed, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&params.N_therm, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&params.topo, 1, MPI_C_BOOL, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&params.N_shift_topo, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&params.N_steps_gf, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&params.N_rk_steps, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    MPI_Bcast(&params.hp.beta, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&params.hp.N_samples, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&params.hp.N_hits, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&params.hp.N_sweeps, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&params.hp.N_therm, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    // 3. Diffusion de la std::string (run_name)
+    int name_len;
+    if (rank == 0) {
+        name_len = static_cast<int>(params.run_name.size());
+    }
+
+    // On envoie d'abord la taille de la string
+    MPI_Bcast(&name_len, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    // Les autres ranks préparent leur mémoire
+    if (rank != 0) {
+        params.run_name.resize(name_len);
+    }
+
+    // On envoie le contenu de la string (le buffer interne)
+    if (name_len > 0) {
+        MPI_Bcast(&params.run_name[0], name_len, MPI_CHAR, 0, MPI_COMM_WORLD);
+    }
+    bool local_existing = fs::exists("data/" + params.run_name) and
+                          fs::exists("data/" + params.run_name + "_seed/" + params.run_name +
+                                     "_seed" + std::to_string(rank) + ".txt");
+    bool global_existing;
+    // On vérifie que TOUS les processus ont trouvé leurs fichiers
+    MPI_Allreduce(&local_existing, &global_existing, 1, MPI_C_BOOL, MPI_LAND, MPI_COMM_WORLD);
+
+    if (global_existing) {
+        if (rank == 0) std::cout << "All ranks found existing configuration. Resuming...\n";
+        return true;
+    } else {
+        return false;
+    }
 }

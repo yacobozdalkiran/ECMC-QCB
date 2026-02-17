@@ -26,6 +26,9 @@ void load_params(const std::string& filename, RunParamsHbCB& rp);
 
 // Utilitaries
 std::string format_double(double val, int precision);
+
+//Load parameters from input file
+bool read_params(RunParamsHbCB& params, int rank, const std::string& input);
 }  // namespace io
 
 // Printing
