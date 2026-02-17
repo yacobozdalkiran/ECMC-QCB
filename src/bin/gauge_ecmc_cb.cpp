@@ -5,12 +5,12 @@
 #include "../ecmc/ecmc_mpi_cb.h"
 #include "../flow/gradient_flow.h"
 #include "../gauge/GaugeField.h"
+#include "../io/ildg.h"
 #include "../io/io.h"
 #include "../mpi/HalosExchange.h"
 #include "../mpi/HalosShift.h"
 #include "../mpi/Shift.h"
 #include "../observables/observables_mpi.h"
-#include "../io/ildg.h"
 
 void print_parameters(const RunParamsECB& rp, const mpi::MpiTopology& topo) {
     if (topo.rank == 0) {
@@ -60,15 +60,65 @@ void generate_ecmc_cb(const RunParamsECB& rp) {
     // Print params
     print_parameters(rp, topo);
 
+    // Topo
+    double eps = 0.02;
+    GradientFlow flow(eps, field, geo);
+
     // Measures
     std::vector<double> plaquette;
     std::vector<double> plaquette_even;
     std::vector<double> plaquette_odd;
     plaquette_even.reserve(rp.ecmc_params.N_samples);
     plaquette_odd.reserve(rp.ecmc_params.N_samples);
-    plaquette.reserve(rp.N_shift*rp.N_switch_eo*2*rp.ecmc_params.N_samples);
+    plaquette.reserve(rp.N_shift * rp.N_switch_eo * 2 * rp.ecmc_params.N_samples);
+
+    std::vector<double> tQE_tot;
+    std::vector<double> tQE_current;
+    if (rp.topo) {
+        tQE_tot.reserve((rp.N_shift / rp.N_shift_topo) * 3 * rp.N_rk_steps * rp.N_steps_gf);
+        tQE_current.reserve(3 * rp.N_rk_steps * rp.N_steps_gf);
+    }
 
     //==============================ECMC Checkboard===========================
+    // Thermalisation
+
+    if (topo.rank == 0) {
+        std::cout << "Thermalisation : " << rp.N_therm << " shifts\n";
+    }
+
+    for (int i = 0; i < rp.N_therm; i++) {
+        for (int j = 0; j < N_switch_eo; j++) {
+            // Even parity :
+            if (topo.rank == 0) {
+                std::cout << "(Therm) Shift : " << i << ", Switch : " << j << ", Parity : Even\n";
+            }
+            parity active_parity = even;
+            mpi::exchange::exchange_halos_cascade(field, geo, topo);
+            plaquette_even =
+                mpi::ecmccb::samples_improved(field, geo, ep, rng, topo, active_parity);
+            // plaquette.insert(plaquette.end(), std::make_move_iterator(plaquette_even.begin()),
+            // std::make_move_iterator(plaquette_even.end()));
+
+            // Odd parity :
+            if (topo.rank == 0) {
+                std::cout << "(Therm) Shift : " << i << ", Switch : " << j << ", Parity : Odd\n";
+            }
+            active_parity = odd;
+            mpi::exchange::exchange_halos_cascade(field, geo, topo);
+            plaquette_odd = mpi::ecmccb::samples_improved(field, geo, ep, rng, topo, active_parity);
+            // plaquette.insert(plaquette.end(), std::make_move_iterator(plaquette_odd.begin()),
+            // std::make_move_iterator(plaquette_odd.end()));
+        }
+        // Random shift
+        mpi::shift::random_shift(field, geo, halo_shift, topo, rng);
+    }
+
+    // Sampling
+    if (topo.rank == 0) {
+        std::cout << "Sampling : " << rp.N_shift * rp.N_switch_eo * 2 * rp.ecmc_params.N_samples
+                  << " <P> samples, " << rp.N_shift / rp.N_shift_topo << " Q samples\n";
+    }
+
     for (int i = 0; i < N_shift; i++) {
         for (int j = 0; j < N_switch_eo; j++) {
             // Even parity :
@@ -79,7 +129,8 @@ void generate_ecmc_cb(const RunParamsECB& rp) {
             mpi::exchange::exchange_halos_cascade(field, geo, topo);
             plaquette_even =
                 mpi::ecmccb::samples_improved(field, geo, ep, rng, topo, active_parity);
-            plaquette.insert(plaquette.end(), std::make_move_iterator(plaquette_even.begin()), std::make_move_iterator(plaquette_even.end()));
+            plaquette.insert(plaquette.end(), std::make_move_iterator(plaquette_even.begin()),
+                             std::make_move_iterator(plaquette_even.end()));
 
             // Odd parity :
             if (topo.rank == 0) {
@@ -87,44 +138,21 @@ void generate_ecmc_cb(const RunParamsECB& rp) {
             }
             active_parity = odd;
             mpi::exchange::exchange_halos_cascade(field, geo, topo);
-            plaquette_odd =
-                mpi::ecmccb::samples_improved(field, geo, ep, rng, topo, active_parity);
-            plaquette.insert(plaquette.end(), std::make_move_iterator(plaquette_odd.begin()), std::make_move_iterator(plaquette_odd.end()));
+            plaquette_odd = mpi::ecmccb::samples_improved(field, geo, ep, rng, topo, active_parity);
+            plaquette.insert(plaquette.end(), std::make_move_iterator(plaquette_odd.begin()),
+                             std::make_move_iterator(plaquette_odd.end()));
         }
         // Random shift
         mpi::shift::random_shift(field, geo, halo_shift, topo, rng);
-    }
 
-    //===========================Gradient flow test==========================
-
-    double p = mpi::observables::mean_plaquette_global(field, geo, topo);
-    if (topo.rank == 0) {
-        std::cout << "P = " << p << "\n";
-        std::cout << field.view_link_const(geo.index(1, 1, 1, 1), 0) << "\n";
+        // Measure topo
+        if (rp.topo and (i % rp.N_shift_topo == 0)) {
+            tQE_current = mpi::observables::topo_charge_flowed(field, geo, flow, topo,
+                                                               rp.N_steps_gf, rp.N_rk_steps);
+            tQE_tot.insert(tQE_tot.end(), std::make_move_iterator(tQE_current.begin()),
+                           std::make_move_iterator(tQE_current.end()));
+        }
     }
-    double eps = 0.02;
-    GradientFlow flow(eps, field, geo);
-    int N_steps_tot = 400;
-    int N_step_meas = 40;
-    mpi::observables::topo_charge_flowed(field, geo, flow, topo, N_steps_tot, N_step_meas);
-
-    // Save conf
-    std::string filename = "data/conf_ecmc.ildg";
-    save_ildg_clime(filename, field, geo, topo);
-    if (topo.rank == 0) {
-        std::cout << "Conf saved at " + filename + "\n";
-    }
-
-    GaugeField field2(geo);
-    read_ildg_clime(filename, field2, geo, topo);
-    p = mpi::observables::mean_plaquette_global(field2, geo, topo);
-    if (topo.rank == 0) {
-        std::cout << "P = " << p << "\n";
-        std::cout << field2.view_link_const(geo.index(1, 1, 1, 1), 0) << "\n";
-    }
-    eps = 0.02;
-    GradientFlow flow2(eps, field2, geo);
-    mpi::observables::topo_charge_flowed(field, geo, flow, topo, N_steps_tot, N_step_meas);
 
     //===========================Output======================================
 
@@ -138,9 +166,17 @@ void generate_ecmc_cb(const RunParamsECB& rp) {
                                "Np" + std::to_string(ep.N_samples) + "c" +
                                std::to_string(rp.cold_start) + "ts" +
                                io::format_double(ep.param_theta_sample, precision_filename) + "tr" +
-                               io::format_double(ep.param_theta_refresh, precision_filename);
+                               io::format_double(ep.param_theta_refresh, precision_filename)+"_plaquette";
         int precision = 10;
         io::save_double(plaquette, filename, precision);
+        std::string filename_tQE = "EMQCB_" + std::to_string(L * n_core_dims) + "b" +
+                               io::format_double(ep.beta, precision_filename) + "Ns" +
+                               std::to_string(rp.N_shift) + "Nsw" + std::to_string(rp.N_switch_eo) +
+                               "Np" + std::to_string(ep.N_samples) + "c" +
+                               std::to_string(rp.cold_start) + "ts" +
+                               io::format_double(ep.param_theta_sample, precision_filename) + "tr" +
+                               io::format_double(ep.param_theta_refresh, precision_filename)+"_topo";
+        io::save_topo(tQE_tot,filename_tQE, precision);
     }
 }
 

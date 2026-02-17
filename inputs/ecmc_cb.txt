@@ -1,18 +1,18 @@
 L_core=4
 n_core_dims=2
 cold_start=false
-N_shift=500
+N_shift=300
 N_switch_eo=2
 seed=12345
 
-beta=6.0
+beta=5.8
 N_samples=1
-param_theta_sample=250
-param_theta_refresh=150
+param_theta_sample=350
+param_theta_refresh=400
 poisson=false
 epsilon_set=0.15
 
-N_therm = 100
+N_therm = 2000
 topo = true
 N_shift_topo = 20
 N_steps_gf = 10
