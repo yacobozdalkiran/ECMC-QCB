@@ -61,11 +61,12 @@ void generate_ecmc_cb(const RunParamsECB& rp) {
     print_parameters(rp, topo);
 
     // Measures
-    std::vector<std::vector<std::vector<std::vector<double>>>> plaquette(
-        rp.N_shift,
-        std::vector<std::vector<std::vector<double>>>(
-            rp.N_switch_eo, std::vector<std::vector<double>>(
-                                2, std::vector<double>(rp.ecmc_params.N_samples, 0.0))));
+    std::vector<double> plaquette;
+    std::vector<double> plaquette_even;
+    std::vector<double> plaquette_odd;
+    plaquette_even.reserve(rp.ecmc_params.N_samples);
+    plaquette_odd.reserve(rp.ecmc_params.N_samples);
+    plaquette.reserve(rp.N_shift*rp.N_switch_eo*2*rp.ecmc_params.N_samples);
 
     //==============================ECMC Checkboard===========================
     for (int i = 0; i < N_shift; i++) {
@@ -76,8 +77,9 @@ void generate_ecmc_cb(const RunParamsECB& rp) {
             }
             parity active_parity = even;
             mpi::exchange::exchange_halos_cascade(field, geo, topo);
-            plaquette[i][j][0] =
+            plaquette_even =
                 mpi::ecmccb::samples_improved(field, geo, ep, rng, topo, active_parity);
+            plaquette.insert(plaquette.end(), std::make_move_iterator(plaquette_even.begin()), std::make_move_iterator(plaquette_even.end()));
 
             // Odd parity :
             if (topo.rank == 0) {
@@ -85,8 +87,9 @@ void generate_ecmc_cb(const RunParamsECB& rp) {
             }
             active_parity = odd;
             mpi::exchange::exchange_halos_cascade(field, geo, topo);
-            plaquette[i][j][1] =
+            plaquette_odd =
                 mpi::ecmccb::samples_improved(field, geo, ep, rng, topo, active_parity);
+            plaquette.insert(plaquette.end(), std::make_move_iterator(plaquette_odd.begin()), std::make_move_iterator(plaquette_odd.end()));
         }
         // Random shift
         mpi::shift::random_shift(field, geo, halo_shift, topo, rng);
@@ -127,20 +130,6 @@ void generate_ecmc_cb(const RunParamsECB& rp) {
 
     // Flatten the vector
     if (topo.rank == 0) {
-        // Flatten the plaquette vector
-        std::vector<double> plaquette_flat(rp.N_shift * rp.N_switch_eo * 2 *
-                                           rp.ecmc_params.N_samples);
-        for (int i = 0; i < rp.N_shift; i++) {
-            for (int j = 0; j < rp.N_switch_eo; j++) {
-                for (int k = 0; k < 2; k++) {
-                    for (int l = 0; l < rp.ecmc_params.N_samples; l++) {
-                        plaquette_flat[((i * rp.N_switch_eo + j) * 2 + k) *
-                                           rp.ecmc_params.N_samples +
-                                       l] = plaquette[i][j][k][l];
-                    }
-                }
-            }
-        }
         // Write the output
         int precision_filename = 1;
         std::string filename = "EMQCB_" + std::to_string(L * n_core_dims) + "b" +
@@ -151,7 +140,7 @@ void generate_ecmc_cb(const RunParamsECB& rp) {
                                io::format_double(ep.param_theta_sample, precision_filename) + "tr" +
                                io::format_double(ep.param_theta_refresh, precision_filename);
         int precision = 10;
-        io::save_double(plaquette_flat, filename, precision);
+        io::save_double(plaquette, filename, precision);
     }
 }
 

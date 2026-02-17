@@ -62,11 +62,13 @@ void generate_hb_cb(const RunParamsHbCB& rp) {
     print_parameters(rp, topo);
 
     // Measures
-    std::vector<std::vector<std::vector<std::vector<double>>>> plaquette(
-        rp.N_shift, std::vector<std::vector<std::vector<double>>>(
-                        rp.N_switch_eo, std::vector<std::vector<double>>(
-                                            2, std::vector<double>(rp.hp.N_samples, 0.0))));
 
+    std::vector<double> plaquette;
+    std::vector<double> plaquette_even;
+    std::vector<double> plaquette_odd;
+    plaquette_even.reserve(rp.hp.N_samples);
+    plaquette_odd.reserve(rp.hp.N_samples);
+    plaquette.reserve(rp.N_shift*rp.N_switch_eo*2*rp.hp.N_samples);
     //==============================Heatbath Checkboard===========================
 
     for (int i = 0; i < N_shift; i++) {
@@ -77,15 +79,16 @@ void generate_hb_cb(const RunParamsHbCB& rp) {
             }
             parity active_parity = even;
             mpi::exchange::exchange_halos_cascade(field, geo, topo);
-            plaquette[i][j][0] = mpi::heatbathcb::samples(field, geo, topo, hp, rng, active_parity);
-
+            plaquette_even = mpi::heatbathcb::samples(field, geo, topo, hp, rng, active_parity);
+            plaquette.insert(plaquette.end(), std::make_move_iterator(plaquette_even.begin()), std::make_move_iterator(plaquette_even.end()));
             // Odd parity :
             if (topo.rank == 0) {
                 std::cout << "Shift : " << i << ", Switch : " << j << ", Parity : Odd\n";
             }
             active_parity = odd;
             mpi::exchange::exchange_halos_cascade(field, geo, topo);
-            plaquette[i][j][1] = mpi::heatbathcb::samples(field, geo, topo, hp, rng, active_parity);
+            plaquette_odd = mpi::heatbathcb::samples(field, geo, topo, hp, rng, active_parity);
+            plaquette.insert(plaquette.end(), std::make_move_iterator(plaquette_odd.begin()), std::make_move_iterator(plaquette_odd.end()));
         }
 
         // Random shift
@@ -101,9 +104,9 @@ void generate_hb_cb(const RunParamsHbCB& rp) {
     }
     double eps = 0.02;
     GradientFlow flow(eps, field, geo);
-    int N_steps_tot = 400;
-    int N_step_meas = 40;
-    mpi::observables::topo_charge_flowed(field, geo, flow, topo, N_steps_tot, N_step_meas);
+    int N_steps_gf= 10;
+    int N_rk_steps = 40;
+    mpi::observables::topo_charge_flowed(field, geo, flow, topo, N_steps_gf, N_rk_steps);
 
     // Save conf
     std::string filename = "data/conf_hb.ildg";
@@ -121,24 +124,12 @@ void generate_hb_cb(const RunParamsHbCB& rp) {
     }
     eps = 0.02;
     GradientFlow flow2(eps, field2, geo);
-    mpi::observables::topo_charge_flowed(field, geo, flow, topo, N_steps_tot, N_step_meas);
+    mpi::observables::topo_charge_flowed(field, geo, flow, topo, N_steps_gf, N_rk_steps);
 
     //===========================Output======================================
 
     // Flatten the vector
     if (topo.rank == 0) {
-        // Flatten the plaquette vector
-        std::vector<double> plaquette_flat(rp.N_shift * rp.N_switch_eo * 2 * rp.hp.N_samples);
-        for (int i = 0; i < rp.N_shift; i++) {
-            for (int j = 0; j < rp.N_switch_eo; j++) {
-                for (int k = 0; k < 2; k++) {
-                    for (int l = 0; l < rp.hp.N_samples; l++) {
-                        plaquette_flat[((i * rp.N_switch_eo + j) * 2 + k) * rp.hp.N_samples + l] =
-                            plaquette[i][j][k][l];
-                    }
-                }
-            }
-        }
         // Write the output
         int precision_filename = 1;
         std::string filename = "HBQCB_" + std::to_string(L * n_core_dims) + "b" +
@@ -148,7 +139,7 @@ void generate_hb_cb(const RunParamsHbCB& rp) {
                                std::to_string(rp.cold_start) + "Nswp" +
                                std::to_string(hp.N_sweeps) + "Nh" + std::to_string(hp.N_hits);
         int precision = 10;
-        io::save_double(plaquette_flat, filename, precision);
+        io::save_double(plaquette, filename, precision);
     }
 }
 
