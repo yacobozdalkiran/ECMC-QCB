@@ -56,6 +56,9 @@ void save_ildg_clime(const std::string& filename,
 
         limeDestroyWriter(w);
         fclose(fp);
+        if (topo.rank == 0){
+            std::cout << "Configuration saved in " << filename << "\n";
+        }
     }
 
     // --- ÉTAPE 2 : Synchronisation de l'offset ---

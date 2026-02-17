@@ -5,6 +5,7 @@
 #ifndef ECMC_MPI_PARAMS_H
 #define ECMC_MPI_PARAMS_H
 
+#include <string>
 struct ECMCParams {
     double beta = 6.0;
     int N_samples = 10;
@@ -35,6 +36,7 @@ struct RunParamsECB {
     int N_shift_topo = 10; //Measure topo charge every N_shift_topo shift
     int N_steps_gf = 10;
     int N_rk_steps = 40;
+    std::string run_name="c";
 };
 
 struct RunParamsHbCB {
@@ -50,6 +52,7 @@ struct RunParamsHbCB {
     int N_shift_topo = 10; //Measure topo charge every N_shift_topo shift
     int N_steps_gf = 10;
     int N_rk_steps = 40;
+    std::string run_name="c";
 };
 
 #endif  // ECMC_MPI_PARAMS_H

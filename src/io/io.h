@@ -6,37 +6,30 @@
 #ifndef ECMC_MPI_IO_H
 #define ECMC_MPI_IO_H
 
-#include <iostream>
+#include <random>
 #include <vector>
-#include <sstream>
-#include <iomanip>
 
+#include "../mpi/MpiTopology.h"
 #include "params.h"
 
 namespace io {
-    //Output
-    void save_double(const std::vector<double> &data, const std::string &filename, int precision);
-    void save_topo(const std::vector<double> tQE, const std::string& filename, int precision);
+// Output
+void save_double(const std::vector<double>& data, const std::string& filename, int precision);
+void save_topo(const std::vector<double>& tQE, const std::string& filename, int precision);
+void save_seed(std::mt19937_64& rng, const std::string& filename, mpi::MpiTopology& topo);
+void save_params(const RunParamsHbCB& rp, const std::string& filename);
 
-    //Input
-    std::string trim(const std::string& s);
-    void load_params(const std::string &filename, RunParamsECB& rp);
-    void load_params(const std::string &filename, RunParamsHbCB& rp);
+// Input
+std::string trim(const std::string& s);
+void load_params(const std::string& filename, RunParamsECB& rp);
+void load_params(const std::string& filename, RunParamsHbCB& rp);
 
-    //Utilitaries
-    inline std::string format_double(double val, int precision) {
-        std::stringstream ss;
-        ss << std::fixed << std::setprecision(precision) << val;
-        return ss.str();
-    }
-}
+// Utilitaries
+std::string format_double(double val, int precision);
+}  // namespace io
 
-//Prints the elapsed time
-inline void print_time(long elapsed) {
-    std::cout << "==========================================" << std::endl;
-    std::cout << "Elapsed time : " << elapsed << "s\n";
-    std::cout << "==========================================" << std::endl;
-}
+// Printing
+void print_parameters(const RunParamsHbCB& rp, const mpi::MpiTopology& topo);
+void print_time(long elapsed);
 
-
-#endif //ECMC_MPI_IO_H
+#endif  // ECMC_MPI_IO_H

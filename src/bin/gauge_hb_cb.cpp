@@ -1,3 +1,6 @@
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
 #include <iostream>
 
 #include "../flow/gradient_flow.h"
@@ -11,27 +14,9 @@
 #include "../mpi/Shift.h"
 #include "../observables/observables_mpi.h"
 
-void print_parameters(const RunParamsHbCB& rp, const mpi::MpiTopology& topo) {
-    if (topo.rank == 0) {
-        std::cout << "==========================================" << std::endl;
-        std::cout << "Heatbath - Checkboard" << std::endl;
-        std::cout << "==========================================" << std::endl;
-        std::cout << "Total lattice size : " << rp.L_core * rp.n_core_dims << "^4\n";
-        std::cout << "Local lattice size : " << rp.L_core << "^4\n";
-        std::cout << "Beta : " << rp.hp.beta << "\n";
-        std::cout << "Total number of shifts : " << rp.N_shift << "\n";
-        std::cout << "Number of e/o switchs per shift : " << rp.N_switch_eo << "\n";
-        std::cout << "Number of sweeps : " << rp.hp.N_sweeps << "\n";
-        std::cout << "Number of hits : " << rp.hp.N_hits << "\n";
-        std::cout << "Number of samples per checkboard step : " << rp.hp.N_samples << "\n";
-        std::cout << "Total number of samples : "
-                  << 2 * rp.N_switch_eo * rp.hp.N_samples * rp.N_shift << "\n";
-        std::cout << "Seed : " << rp.seed << "\n";
-        std::cout << "==========================================" << std::endl;
-    }
-}
+namespace fs = std::filesystem;
 
-void generate_hb_cb(const RunParamsHbCB& rp) {
+void generate_hb_cb(const RunParamsHbCB& rp, bool existing) {
     //========================Objects initialization====================
     // MPI
     int n_core_dims = rp.n_core_dims;
@@ -44,6 +29,18 @@ void generate_hb_cb(const RunParamsHbCB& rp) {
     std::mt19937_64 rng(rp.seed + topo.rank);
     if (!rp.cold_start) {
         field.hot_start(geo, rng);
+    }
+
+    if (existing) {
+        read_ildg_clime("data/"+rp.run_name, field, geo, topo);
+        fs::path state_path =
+            fs::path("data/"+rp.run_name+"_seed") / (rp.run_name + "_seed" + std::to_string(topo.rank) + ".txt");
+        std::ifstream ifs(state_path);
+        if (ifs.is_open()) {
+            ifs >> rng;  // On ignore la seed initiale, on reprend l'état exactement
+        } else {
+            std::cerr << "Could not open " << state_path << "\n";
+        }
     }
 
     // Initalization of halos
@@ -65,8 +62,7 @@ void generate_hb_cb(const RunParamsHbCB& rp) {
     double eps = 0.02;
     GradientFlow flow(eps, field, geo);
 
-    // Measures
-
+    // Measure vectors
     std::vector<double> plaquette;
     std::vector<double> plaquette_even;
     std::vector<double> plaquette_odd;
@@ -156,31 +152,22 @@ void generate_hb_cb(const RunParamsHbCB& rp) {
 
     //===========================Output======================================
 
-    // Flatten the vector
     if (topo.rank == 0) {
         // Write the output
-        int precision_filename = 1;
-        std::string filename =
-            "HBQCB_" + std::to_string(L * n_core_dims) + "b" +
-            io::format_double(hp.beta, precision_filename) + "Ns" + std::to_string(rp.N_shift) +
-            "Nsw" + std::to_string(rp.N_switch_eo) + "Np" + std::to_string(hp.N_samples) + "c" +
-            std::to_string(rp.cold_start) + "Nswp" + std::to_string(hp.N_sweeps) + "Nh" +
-            std::to_string(hp.N_hits) + "_plaquette";
         int precision = 10;
-        io::save_double(plaquette, filename, precision);
-
-        std::string filename_tQE =
-            "HBQCB_" + std::to_string(L * n_core_dims) + "b" +
-            io::format_double(hp.beta, precision_filename) + "Ns" + std::to_string(rp.N_shift) +
-            "Nsw" + std::to_string(rp.N_switch_eo) + "Np" + std::to_string(hp.N_samples) + "c" +
-            std::to_string(rp.cold_start) + "Nswp" + std::to_string(hp.N_sweeps) + "Nh" +
-            std::to_string(hp.N_hits) + "_topo";
-        io::save_topo(tQE_tot, filename_tQE, precision);
+        io::save_double(plaquette, rp.run_name, precision);
+        io::save_topo(tQE_tot, rp.run_name, precision);
+        io::save_params(rp, rp.run_name);
     }
+    //Save seeds
+    io::save_seed(rng, rp.run_name, topo);
+    // Save conf
+    save_ildg_clime("data/" + rp.run_name, field, geo, topo);
 }
 
 // Reads the parameters of input file into RunParams struct
-void read_params(RunParamsHbCB& params, int rank, const std::string& input) {
+// If run_name.ildg is found returns true
+bool read_params(RunParamsHbCB& params, int rank, const std::string& input) {
     if (rank == 0) {
         try {
             io::load_params(input, params);
@@ -189,8 +176,59 @@ void read_params(RunParamsHbCB& params, int rank, const std::string& input) {
             MPI_Abort(MPI_COMM_WORLD, 1);
         }
     }
-    // Synchronizing input parameters accross all nodes
-    MPI_Bcast(&params, sizeof(RunParamsHbCB), MPI_BYTE, 0, MPI_COMM_WORLD);
+    // 1. Diffusion des paramètres numériques (Lattice + Run + Topo)
+    // On diffuse les blocs un par un pour plus de clarté et de sécurité
+    MPI_Bcast(&params.L_core, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&params.n_core_dims, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&params.cold_start, 1, MPI_C_BOOL, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&params.N_switch_eo, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&params.N_shift, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&params.seed, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&params.N_therm, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&params.topo, 1, MPI_C_BOOL, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&params.N_shift_topo, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&params.N_steps_gf, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&params.N_rk_steps, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    MPI_Bcast(&params.hp.beta, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&params.hp.N_samples, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&params.hp.N_hits, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&params.hp.N_sweeps, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&params.hp.N_therm, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    // 3. Diffusion de la std::string (run_name)
+    int name_len;
+    if (rank == 0) {
+        name_len = static_cast<int>(params.run_name.size());
+    }
+
+    // On envoie d'abord la taille de la string
+    MPI_Bcast(&name_len, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    // Les esclaves préparent leur mémoire
+    if (rank != 0) {
+        params.run_name.resize(name_len);
+    }
+
+    // On envoie le contenu de la string (le buffer interne)
+    if (name_len > 0) {
+        MPI_Bcast(&params.run_name[0], name_len, MPI_CHAR, 0, MPI_COMM_WORLD);
+    }
+
+    bool local_existing =
+        fs::exists("data/" + params.run_name) and
+        fs::exists("data/" + params.run_name + "_plaquette.txt") and
+        fs::exists("data/" + params.run_name + "_topo.txt") and
+        fs::exists("data/" + params.run_name + "_seed/" + params.run_name + "_seed" + std::to_string(rank) + ".txt");
+    bool global_existing;
+    // On vérifie que TOUS les processus ont trouvé leurs fichiers
+    MPI_Allreduce(&local_existing, &global_existing, 1, MPI_C_BOOL, MPI_LAND, MPI_COMM_WORLD);
+    if (global_existing) {
+        if (rank == 0) std::cout << "All ranks found existing configuration. Resuming...\n";
+        return true;
+    } else {
+        return false;
+    }
 }
 
 int main(int argc, char* argv[]) {
@@ -210,13 +248,13 @@ int main(int argc, char* argv[]) {
 
     // Charging the parameters of the run
     RunParamsHbCB params;
-    read_params(params, rank, argv[1]);
+    bool existing = read_params(params, rank, argv[1]);
 
     // Measuring time
     MPI_Barrier(MPI_COMM_WORLD);
     double start_time = MPI_Wtime();
 
-    generate_hb_cb(params);
+    generate_hb_cb(params, existing);
 
     MPI_Barrier(MPI_COMM_WORLD);
     double end_time = MPI_Wtime();
