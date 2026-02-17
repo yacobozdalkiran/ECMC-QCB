@@ -83,9 +83,9 @@ void generate_hb_cb(const RunParamsHbCB& rp) {
 
     //==============================Heatbath Checkboard===========================
 
-    //Thermalisation
+    // Thermalisation
 
-    if (topo.rank == 0){
+    if (topo.rank == 0) {
         std::cout << "Thermalisation : " << rp.N_therm << " shifts\n";
     }
     for (int i = 0; i < rp.N_therm; i++) {
@@ -97,8 +97,8 @@ void generate_hb_cb(const RunParamsHbCB& rp) {
             parity active_parity = even;
             mpi::exchange::exchange_halos_cascade(field, geo, topo);
             plaquette_even = mpi::heatbathcb::samples(field, geo, topo, hp, rng, active_parity);
-            //plaquette.insert(plaquette.end(), std::make_move_iterator(plaquette_even.begin()),
-                             std::make_move_iterator(plaquette_even.end()));
+            // plaquette.insert(plaquette.end(), std::make_move_iterator(plaquette_even.begin()),
+            // std::make_move_iterator(plaquette_even.end()));
             // Odd parity :
             if (topo.rank == 0) {
                 std::cout << "(Therm) Shift : " << i << ", Switch : " << j << ", Parity : Odd\n";
@@ -106,17 +106,18 @@ void generate_hb_cb(const RunParamsHbCB& rp) {
             active_parity = odd;
             mpi::exchange::exchange_halos_cascade(field, geo, topo);
             plaquette_odd = mpi::heatbathcb::samples(field, geo, topo, hp, rng, active_parity);
-            //plaquette.insert(plaquette.end(), std::make_move_iterator(plaquette_odd.begin()),
-                             std::make_move_iterator(plaquette_odd.end()));
+            // plaquette.insert(plaquette.end(), std::make_move_iterator(plaquette_odd.begin()),
+            // std::make_move_iterator(plaquette_odd.end()));
         }
 
         // Random shift
         mpi::shift::random_shift(field, geo, halo_shift, topo, rng);
     }
 
-    //Sampling
-    if (topo.rank == 0){
-        std::cout << "Sampling : " << rp.N_shift*rp.N_switch_eo*2*rp.hp.N_samples << " <P> samples, " << rp.N_shift/rp.N_shift_topo << " Q samples\n";
+    // Sampling
+    if (topo.rank == 0) {
+        std::cout << "Sampling : " << rp.N_shift * rp.N_switch_eo * 2 * rp.hp.N_samples
+                  << " <P> samples, " << rp.N_shift / rp.N_shift_topo << " Q samples\n";
     }
 
     for (int i = 0; i < N_shift; i++) {
@@ -144,7 +145,7 @@ void generate_hb_cb(const RunParamsHbCB& rp) {
         // Random shift
         mpi::shift::random_shift(field, geo, halo_shift, topo, rng);
 
-        //Measure topo
+        // Measure topo
         if (rp.topo and (i % rp.N_shift_topo == 0)) {
             tQE_current = mpi::observables::topo_charge_flowed(field, geo, flow, topo,
                                                                rp.N_steps_gf, rp.N_rk_steps);
@@ -159,22 +160,21 @@ void generate_hb_cb(const RunParamsHbCB& rp) {
     if (topo.rank == 0) {
         // Write the output
         int precision_filename = 1;
-        std::string filename = "HBQCB_" + std::to_string(L * n_core_dims) + "b" +
-                               io::format_double(hp.beta, precision_filename) + "Ns" +
-                               std::to_string(rp.N_shift) + "Nsw" + std::to_string(rp.N_switch_eo) +
-                               "Np" + std::to_string(hp.N_samples) + "c" +
-                               std::to_string(rp.cold_start) + "Nswp" +
-                               std::to_string(hp.N_sweeps) + "Nh" + std::to_string(hp.N_hits) + "_plaquette";
+        std::string filename =
+            "HBQCB_" + std::to_string(L * n_core_dims) + "b" +
+            io::format_double(hp.beta, precision_filename) + "Ns" + std::to_string(rp.N_shift) +
+            "Nsw" + std::to_string(rp.N_switch_eo) + "Np" + std::to_string(hp.N_samples) + "c" +
+            std::to_string(rp.cold_start) + "Nswp" + std::to_string(hp.N_sweeps) + "Nh" +
+            std::to_string(hp.N_hits) + "_plaquette";
         int precision = 10;
         io::save_double(plaquette, filename, precision);
 
-
-        std::string filename_tQE = "HBQCB_" + std::to_string(L * n_core_dims) + "b" +
-                               io::format_double(hp.beta, precision_filename) + "Ns" +
-                               std::to_string(rp.N_shift) + "Nsw" + std::to_string(rp.N_switch_eo) +
-                               "Np" + std::to_string(hp.N_samples) + "c" +
-                               std::to_string(rp.cold_start) + "Nswp" +
-                               std::to_string(hp.N_sweeps) + "Nh" + std::to_string(hp.N_hits) + "_topo";
+        std::string filename_tQE =
+            "HBQCB_" + std::to_string(L * n_core_dims) + "b" +
+            io::format_double(hp.beta, precision_filename) + "Ns" + std::to_string(rp.N_shift) +
+            "Nsw" + std::to_string(rp.N_switch_eo) + "Np" + std::to_string(hp.N_samples) + "c" +
+            std::to_string(rp.cold_start) + "Nswp" + std::to_string(hp.N_sweeps) + "Nh" +
+            std::to_string(hp.N_hits) + "_topo";
         io::save_topo(tQE_tot, filename_tQE, precision);
     }
 }
