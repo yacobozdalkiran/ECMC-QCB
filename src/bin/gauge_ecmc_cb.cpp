@@ -1,5 +1,7 @@
 #include <mpi.h>
 
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <iomanip>
 
@@ -13,25 +15,9 @@
 #include "../mpi/Shift.h"
 #include "../observables/observables_mpi.h"
 
-void print_parameters(const RunParamsECB& rp, const mpi::MpiTopology& topo) {
-    if (topo.rank == 0) {
-        std::cout << "==========================================" << std::endl;
-        std::cout << "ECMC - Checkboard" << std::endl;
-        std::cout << "==========================================" << std::endl;
-        std::cout << "Total lattice size : " << rp.L_core * rp.n_core_dims << "^4\n";
-        std::cout << "Local lattice size : " << rp.L_core << "^4\n";
-        std::cout << "Beta : " << rp.ecmc_params.beta << "\n";
-        std::cout << "Total number of shifts : " << rp.N_shift << "\n";
-        std::cout << "Number of e/o switchs per shift : " << rp.N_switch_eo << "\n";
-        std::cout << "Number of samples per checkboard step : " << rp.ecmc_params.N_samples << "\n";
-        std::cout << "Total number of samples : "
-                  << 2 * rp.N_switch_eo * rp.ecmc_params.N_samples * rp.N_shift << "\n";
-        std::cout << "Seed : " << rp.seed << "\n";
-        std::cout << "==========================================" << std::endl;
-    }
-}
+namespace fs = std::filesystem;
 
-void generate_ecmc_cb(const RunParamsECB& rp) {
+void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
     //========================Objects initialization====================
     // MPI
     int n_core_dims = rp.n_core_dims;
@@ -46,6 +32,19 @@ void generate_ecmc_cb(const RunParamsECB& rp) {
         field.hot_start(geo, rng);
     }
 
+    if (existing) {
+        read_ildg_clime("data/"+rp.run_name, field, geo, topo);
+        fs::path state_path =
+            fs::path("data/"+rp.run_name+"_seed") / (rp.run_name + "_seed" + std::to_string(topo.rank) + ".txt");
+        std::ifstream ifs(state_path);
+        if (ifs.is_open()) {
+            ifs >> rng;  // On ignore la seed initiale, on reprend l'état exactement
+        } else {
+            std::cerr << "Could not open " << state_path << "\n";
+        }
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+    
     // Initalization of halos for ECMC
     mpi::exchange::exchange_halos_cascade(field, geo, topo);
 
@@ -57,9 +56,6 @@ void generate_ecmc_cb(const RunParamsECB& rp) {
 
     int N_shift = rp.N_shift;
     int N_switch_eo = rp.N_switch_eo;
-
-    // Print params
-    print_parameters(rp, topo);
 
     // Topo
     double eps = 0.02;
@@ -79,6 +75,11 @@ void generate_ecmc_cb(const RunParamsECB& rp) {
         tQE_tot.reserve((rp.N_shift / rp.N_shift_topo) * 3 * rp.N_rk_steps * rp.N_steps_gf);
         tQE_current.reserve(3 * rp.N_rk_steps * rp.N_steps_gf);
     }
+
+    // Print params
+    print_parameters(rp, topo);
+
+
 
     //==============================ECMC Checkboard===========================
     // Thermalisation
@@ -157,43 +158,21 @@ void generate_ecmc_cb(const RunParamsECB& rp) {
 
     //===========================Output======================================
 
-    // Flatten the vector
     if (topo.rank == 0) {
         // Write the output
-        int precision_filename = 1;
-        std::string filename = "EMQCB_" + std::to_string(L * n_core_dims) + "b" +
-                               io::format_double(ep.beta, precision_filename) + "Ns" +
-                               std::to_string(rp.N_shift) + "Nsw" + std::to_string(rp.N_switch_eo) +
-                               "Np" + std::to_string(ep.N_samples) + "c" +
-                               std::to_string(rp.cold_start) + "ts" +
-                               io::format_double(ep.param_theta_sample, precision_filename) + "tr" +
-                               io::format_double(ep.param_theta_refresh, precision_filename)+"_plaquette";
         int precision = 10;
-        io::save_double(plaquette, filename, precision);
-        std::string filename_tQE = "EMQCB_" + std::to_string(L * n_core_dims) + "b" +
-                               io::format_double(ep.beta, precision_filename) + "Ns" +
-                               std::to_string(rp.N_shift) + "Nsw" + std::to_string(rp.N_switch_eo) +
-                               "Np" + std::to_string(ep.N_samples) + "c" +
-                               std::to_string(rp.cold_start) + "ts" +
-                               io::format_double(ep.param_theta_sample, precision_filename) + "tr" +
-                               io::format_double(ep.param_theta_refresh, precision_filename)+"_topo";
-        io::save_topo(tQE_tot,filename_tQE, precision);
+        io::save_double(plaquette, rp.run_name, precision);
+        if (rp.topo){
+            io::save_topo(tQE_tot, rp.run_name, precision);
+        }
+        io::save_params(rp, rp.run_name);
     }
+    //Save seeds
+    io::save_seed(rng, rp.run_name, topo);
+    // Save conf
+    save_ildg_clime("data/" + rp.run_name, field, geo, topo);
 }
 
-// Reads the parameters of input file into RunParams struct
-void read_params(RunParamsECB& params, int rank, const std::string& input) {
-    if (rank == 0) {
-        try {
-            io::load_params(input, params);
-        } catch (const std::exception& e) {
-            std::cerr << "Error reading input : " << e.what() << std::endl;
-            MPI_Abort(MPI_COMM_WORLD, 1);
-        }
-    }
-    // Synchronizing input parameters accross all nodes
-    MPI_Bcast(&params, sizeof(RunParamsECB), MPI_BYTE, 0, MPI_COMM_WORLD);
-}
 
 int main(int argc, char* argv[]) {
     // Initialize MPI
@@ -212,13 +191,13 @@ int main(int argc, char* argv[]) {
 
     // Charging the parameters of the run
     RunParamsECB params;
-    read_params(params, rank, argv[1]);
+    bool existing = io::read_params(params, rank, argv[1]);
 
     // Measuring time
     MPI_Barrier(MPI_COMM_WORLD);
     double start_time = MPI_Wtime();
 
-    generate_ecmc_cb(params);
+    generate_ecmc_cb(params, existing);
 
     MPI_Barrier(MPI_COMM_WORLD);
     double end_time = MPI_Wtime();
@@ -226,9 +205,7 @@ int main(int argc, char* argv[]) {
     if (rank == 0) {
         double total_time = end_time - start_time;
         std::cout << std::fixed << std::setprecision(4);
-        std::cout << "\n==========================================" << std::endl;
-        std::cout << " Total execution time : " << total_time << " seconds" << std::endl;
-        std::cout << "==========================================\n" << std::endl;
+        print_time(total_time);
     }
     // End MPI
     MPI_Finalize();

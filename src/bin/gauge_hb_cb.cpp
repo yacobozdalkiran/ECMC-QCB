@@ -10,7 +10,6 @@
 #include "../io/io.h"
 #include "../mpi/HalosExchange.h"
 #include "../mpi/HalosShift.h"
-#include "../mpi/MpiTopology.h"
 #include "../mpi/Shift.h"
 #include "../observables/observables_mpi.h"
 
@@ -69,14 +68,14 @@ void generate_hb_cb(const RunParamsHbCB& rp, bool existing) {
 
     std::vector<double> tQE_tot;
     std::vector<double> tQE_current;
-
-    // Print params
-    print_parameters(rp, topo);
-
     if (rp.topo) {
         tQE_tot.reserve((rp.N_shift / rp.N_shift_topo) * 3 * rp.N_rk_steps * rp.N_steps_gf);
         tQE_current.reserve(3 * rp.N_rk_steps * rp.N_steps_gf);
     }
+
+    // Print params
+    print_parameters(rp, topo);
+
 
     //==============================Heatbath Checkboard===========================
 
@@ -199,9 +198,7 @@ int main(int argc, char* argv[]) {
     if (rank == 0) {
         double total_time = end_time - start_time;
         std::cout << std::fixed << std::setprecision(4);
-        std::cout << "\n==========================================" << std::endl;
-        std::cout << " Total execution time : " << total_time << " seconds" << std::endl;
-        std::cout << "==========================================\n" << std::endl;
+        print_time(total_time);
     }
     // End MPI
     MPI_Finalize();

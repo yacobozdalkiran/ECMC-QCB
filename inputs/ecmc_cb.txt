@@ -1,7 +1,7 @@
 L_core=4
 n_core_dims=2
 cold_start=false
-N_shift=300
+N_shift=5
 N_switch_eo=2
 seed=12345
 
@@ -12,8 +12,10 @@ param_theta_refresh=400
 poisson=false
 epsilon_set=0.15
 
-N_therm = 2000
+N_therm = 10
 topo = true
-N_shift_topo = 20
+N_shift_topo = 5
 N_steps_gf = 10
 N_rk_steps = 40
+
+run_name = test_ecmc
