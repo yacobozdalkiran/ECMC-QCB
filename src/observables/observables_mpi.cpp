@@ -146,31 +146,30 @@ std::pair<double, double> mpi::observables::topo_q_e_clover_global(const GaugeFi
     return {total_q, total_e / total_volume};
 };
 
-//Returns t, Q and E for the specified gradient flow parameters
+// Returns t, Q and E for the specified gradient flow parameters
 std::vector<double> mpi::observables::topo_charge_flowed(GaugeField& field, const GeometryCB& geo,
                                                          GradientFlow& gf, mpi::MpiTopology& topo,
                                                          int N_steps_gf, int N_rk_steps) {
     mpi::exchange::exchange_halos_cascade(field, geo, topo);
-    std::vector<double> tQE(3*N_steps_gf * N_rk_steps);
+    std::vector<double> tQE(3 * N_steps_gf);
     gf.copy(field);
     double t = 0.0;
     int p = 6;
     int pt = 2;
-    for (int steps = 0; steps < N_steps_gf * N_rk_steps; steps++) {
-        gf.rk3_step(topo);
-        if (steps % N_rk_steps == 0) {
-            auto qe = topo_q_e_clover_global(gf.field_c, geo, topo);
-            tQE[steps] = t;
-            tQE[steps+1] = qe.first;
-            tQE[steps+2] = qe.second;
-            if (topo.rank == 0) {
-                std::cout << "n = " << steps << ", t = " << io::format_double(t, pt)
-                          << ", Q = " << io::format_double(qe.first, p)
-                          << ", t²E = " << io::format_double(t * t * qe.second, p) << "\n";
-            }
+    for (int steps = 0; steps < N_steps_gf; steps++) {
+        auto qe = topo_q_e_clover_global(gf.field_c, geo, topo);
+        tQE[3 * steps] = t;
+        tQE[3 * steps + 1] = qe.first;
+        tQE[3 * steps + 2] = qe.second;
+        if (topo.rank == 0) {
+            std::cout << "n = " << steps << ", t = " << io::format_double(t, pt)
+                      << ", Q = " << io::format_double(qe.first, p)
+                      << ", t²E = " << io::format_double(t * t * qe.second, p) << "\n";
         }
-        t += gf.epsilon;
-        steps += 1;
+        for (int rk_steps = 0; rk_steps < N_rk_steps; rk_steps++) {
+            gf.rk3_step(topo);
+            t += gf.epsilon;
+        }
     }
     return tQE;
 };

@@ -16,6 +16,7 @@
 namespace io {
     //Output
     void save_double(const std::vector<double> &data, const std::string &filename, int precision);
+    void save_topo(const std::vector<double> tQE, const std::string& filename, int precision);
 
     //Input
     std::string trim(const std::string& s);

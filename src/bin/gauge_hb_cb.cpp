@@ -61,6 +61,10 @@ void generate_hb_cb(const RunParamsHbCB& rp) {
     // Print params
     print_parameters(rp, topo);
 
+    // Topo
+    double eps = 0.02;
+    GradientFlow flow(eps, field, geo);
+
     // Measures
 
     std::vector<double> plaquette;
@@ -68,8 +72,52 @@ void generate_hb_cb(const RunParamsHbCB& rp) {
     std::vector<double> plaquette_odd;
     plaquette_even.reserve(rp.hp.N_samples);
     plaquette_odd.reserve(rp.hp.N_samples);
-    plaquette.reserve(rp.N_shift*rp.N_switch_eo*2*rp.hp.N_samples);
+    plaquette.reserve(rp.N_shift * rp.N_switch_eo * 2 * rp.hp.N_samples);
+
+    std::vector<double> tQE_tot;
+    std::vector<double> tQE_current;
+    if (rp.topo) {
+        tQE_tot.reserve((rp.N_shift / rp.N_shift_topo) * 3 * rp.N_rk_steps * rp.N_steps_gf);
+        tQE_current.reserve(3 * rp.N_rk_steps * rp.N_steps_gf);
+    }
+
     //==============================Heatbath Checkboard===========================
+
+    //Thermalisation
+
+    if (topo.rank == 0){
+        std::cout << "Thermalisation : " << rp.N_therm << " shifts\n";
+    }
+    for (int i = 0; i < rp.N_therm; i++) {
+        for (int j = 0; j < N_switch_eo; j++) {
+            // Even parity :
+            if (topo.rank == 0) {
+                std::cout << "(Therm) Shift : " << i << ", Switch : " << j << ", Parity : Even\n";
+            }
+            parity active_parity = even;
+            mpi::exchange::exchange_halos_cascade(field, geo, topo);
+            plaquette_even = mpi::heatbathcb::samples(field, geo, topo, hp, rng, active_parity);
+            //plaquette.insert(plaquette.end(), std::make_move_iterator(plaquette_even.begin()),
+                             std::make_move_iterator(plaquette_even.end()));
+            // Odd parity :
+            if (topo.rank == 0) {
+                std::cout << "(Therm) Shift : " << i << ", Switch : " << j << ", Parity : Odd\n";
+            }
+            active_parity = odd;
+            mpi::exchange::exchange_halos_cascade(field, geo, topo);
+            plaquette_odd = mpi::heatbathcb::samples(field, geo, topo, hp, rng, active_parity);
+            //plaquette.insert(plaquette.end(), std::make_move_iterator(plaquette_odd.begin()),
+                             std::make_move_iterator(plaquette_odd.end()));
+        }
+
+        // Random shift
+        mpi::shift::random_shift(field, geo, halo_shift, topo, rng);
+    }
+
+    //Sampling
+    if (topo.rank == 0){
+        std::cout << "Sampling : " << rp.N_shift*rp.N_switch_eo*2*rp.hp.N_samples << " <P> samples, " << rp.N_shift/rp.N_shift_topo << " Q samples\n";
+    }
 
     for (int i = 0; i < N_shift; i++) {
         for (int j = 0; j < N_switch_eo; j++) {
@@ -80,7 +128,8 @@ void generate_hb_cb(const RunParamsHbCB& rp) {
             parity active_parity = even;
             mpi::exchange::exchange_halos_cascade(field, geo, topo);
             plaquette_even = mpi::heatbathcb::samples(field, geo, topo, hp, rng, active_parity);
-            plaquette.insert(plaquette.end(), std::make_move_iterator(plaquette_even.begin()), std::make_move_iterator(plaquette_even.end()));
+            plaquette.insert(plaquette.end(), std::make_move_iterator(plaquette_even.begin()),
+                             std::make_move_iterator(plaquette_even.end()));
             // Odd parity :
             if (topo.rank == 0) {
                 std::cout << "Shift : " << i << ", Switch : " << j << ", Parity : Odd\n";
@@ -88,43 +137,21 @@ void generate_hb_cb(const RunParamsHbCB& rp) {
             active_parity = odd;
             mpi::exchange::exchange_halos_cascade(field, geo, topo);
             plaquette_odd = mpi::heatbathcb::samples(field, geo, topo, hp, rng, active_parity);
-            plaquette.insert(plaquette.end(), std::make_move_iterator(plaquette_odd.begin()), std::make_move_iterator(plaquette_odd.end()));
+            plaquette.insert(plaquette.end(), std::make_move_iterator(plaquette_odd.begin()),
+                             std::make_move_iterator(plaquette_odd.end()));
         }
 
         // Random shift
         mpi::shift::random_shift(field, geo, halo_shift, topo, rng);
-    }
 
-    //===========================Gradient flow test==========================
-
-    double p = mpi::observables::mean_plaquette_global(field, geo, topo);
-    if (topo.rank == 0) {
-        std::cout << "P = " << p << "\n";
-        std::cout << field.view_link_const(geo.index(1, 1, 1, 1), 0) << "\n";
+        //Measure topo
+        if (rp.topo and (i % rp.N_shift_topo == 0)) {
+            tQE_current = mpi::observables::topo_charge_flowed(field, geo, flow, topo,
+                                                               rp.N_steps_gf, rp.N_rk_steps);
+            tQE_tot.insert(tQE_tot.end(), std::make_move_iterator(tQE_current.begin()),
+                           std::make_move_iterator(tQE_current.end()));
+        }
     }
-    double eps = 0.02;
-    GradientFlow flow(eps, field, geo);
-    int N_steps_gf= 10;
-    int N_rk_steps = 40;
-    mpi::observables::topo_charge_flowed(field, geo, flow, topo, N_steps_gf, N_rk_steps);
-
-    // Save conf
-    std::string filename = "data/conf_hb.ildg";
-    save_ildg_clime(filename, field, geo, topo);
-    if (topo.rank == 0) {
-        std::cout << "Conf saved at " + filename + "\n";
-    }
-
-    GaugeField field2(geo);
-    read_ildg_clime(filename, field2, geo, topo);
-    p = mpi::observables::mean_plaquette_global(field2, geo, topo);
-    if (topo.rank == 0) {
-        std::cout << "P = " << p << "\n";
-        std::cout << field2.view_link_const(geo.index(1, 1, 1, 1), 0) << "\n";
-    }
-    eps = 0.02;
-    GradientFlow flow2(eps, field2, geo);
-    mpi::observables::topo_charge_flowed(field, geo, flow, topo, N_steps_gf, N_rk_steps);
 
     //===========================Output======================================
 
@@ -137,9 +164,18 @@ void generate_hb_cb(const RunParamsHbCB& rp) {
                                std::to_string(rp.N_shift) + "Nsw" + std::to_string(rp.N_switch_eo) +
                                "Np" + std::to_string(hp.N_samples) + "c" +
                                std::to_string(rp.cold_start) + "Nswp" +
-                               std::to_string(hp.N_sweeps) + "Nh" + std::to_string(hp.N_hits);
+                               std::to_string(hp.N_sweeps) + "Nh" + std::to_string(hp.N_hits) + "_plaquette";
         int precision = 10;
         io::save_double(plaquette, filename, precision);
+
+
+        std::string filename_tQE = "HBQCB_" + std::to_string(L * n_core_dims) + "b" +
+                               io::format_double(hp.beta, precision_filename) + "Ns" +
+                               std::to_string(rp.N_shift) + "Nsw" + std::to_string(rp.N_switch_eo) +
+                               "Np" + std::to_string(hp.N_samples) + "c" +
+                               std::to_string(rp.cold_start) + "Nswp" +
+                               std::to_string(hp.N_sweeps) + "Nh" + std::to_string(hp.N_hits) + "_topo";
+        io::save_topo(tQE_tot, filename_tQE, precision);
     }
 }
 

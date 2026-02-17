@@ -11,3 +11,9 @@ param_theta_sample=250
 param_theta_refresh=150
 poisson=false
 epsilon_set=0.15
+
+N_therm = 100
+topo = true
+N_shift_topo = 20
+N_steps_gf = 10
+N_rk_steps = 40
