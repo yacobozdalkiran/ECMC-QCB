@@ -98,3 +98,34 @@ else()
             -Wall -Wextra -Wpedantic
     )
 endif()
+
+#===Test===
+add_executable(test src/bin/test.cpp
+        src/gauge/GaugeField.cpp
+        src/su3/utils.cpp
+        src/geometry/GeometryCB.cpp
+        src/geometry/types.h
+        src/mpi/MpiTopology.cpp
+        src/mpi/HalosExchange.cpp
+        src/observables/observables_mpi.cpp
+        src/io/io.cpp
+        src/flow/gradient_flow.cpp
+        src/io/ildg.cpp
+)
+target_link_libraries(test PRIVATE MPI::MPI_CXX Eigen3::Eigen lime)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
+    target_compile_options(test PRIVATE
+            -O2
+            #-xHost            # Remplace -march=native pour Intel
+            -fp-model precise
+            -Wall -Wextra
+    )
+else()
+    target_compile_options(test PRIVATE
+            -O2
+            #-ffast-math
+            #-march=native
+            -Wall -Wextra -Wpedantic
+    )
+endif()
+
