@@ -14,7 +14,7 @@ inline void swap_endian_64(void* ptr) {
 std::string generate_ildg_xml(int L_glob);
 void write_lime_header(MPI_File& fh, MPI_Offset offset, const std::string& type, uint64_t len,
                        bool mb, bool me);
-void save_ildg_clime(const std::string& filename, const GaugeField& field, const GeometryCB& geo,
+void save_ildg_clime(const std::string& filename, const std::string& dirpath, const GaugeField& field, const GeometryCB& geo,
                      const mpi::MpiTopology& topo);
-void read_ildg_clime(const std::string& filename, GaugeField& field, const GeometryCB& geo,
+void read_ildg_clime(const std::string& filename, const std::string& dirpath, GaugeField& field, const GeometryCB& geo,
                      mpi::MpiTopology& topo);

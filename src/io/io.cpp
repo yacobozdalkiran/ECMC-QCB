@@ -18,9 +18,9 @@ namespace fs = std::filesystem;
 
 // Saves a vector of doubles in ../data/filename/filename_plaquette.txt
 void io::save_plaquette(const std::vector<double>& data, const std::string& filename,
-                        int precision) {
+                        const std::string& dirpath, int precision) {
     // Create a data folder if doesn't exists
-    fs::path base_dir("data");
+    fs::path base_dir(dirpath);
     fs::path dir = base_dir / filename;
 
     try {
@@ -47,9 +47,10 @@ void io::save_plaquette(const std::vector<double>& data, const std::string& file
 }
 
 // Saves the tQE vector into data/filename/filename_topo.txt
-void io::save_topo(const std::vector<double>& tQE, const std::string& filename, int precision) {
+void io::save_topo(const std::vector<double>& tQE, const std::string& filename,
+                   const std::string& dirpath, int precision) {
     // Create a data folder if doesn't exists
-    fs::path base_dir("data");
+    fs::path base_dir(dirpath);
     fs::path dir = base_dir / filename;
 
     try {
@@ -76,15 +77,16 @@ void io::save_topo(const std::vector<double>& tQE, const std::string& filename, 
 };
 
 // Saves the Mersenne Twister states into data/filename/filename_seed/filename_seed[rank].txt
-void io::save_seed(std::mt19937_64& rng, const std::string& filename, mpi::MpiTopology& topo) {
+void io::save_seed(std::mt19937_64& rng, const std::string& filename, const std::string& dirpath,
+                   mpi::MpiTopology& topo) {
     // Create a data folder if doesn't exists
-    fs::path base_dir("data");
+    fs::path base_dir(dirpath);
     fs::path run_dir =
         base_dir / filename /
         (filename + "_seed");  // Utilise l'opérateur / pour gérer les slashs proprement
 
     try {
-        // create_directories crée "data" PUIS "data/run_name" si nécessaire
+        // create_directories crée dirpath PUIS "data/run_name" si nécessaire
         if (!fs::exists(run_dir)) {
             fs::create_directories(run_dir);
         }
@@ -108,9 +110,10 @@ void io::save_seed(std::mt19937_64& rng, const std::string& filename, mpi::MpiTo
 };
 
 // Saves the run params into data/filename/filename_params.txt
-void io::save_params(const RunParamsHbCB& rp, const std::string& filename) {
+void io::save_params(const RunParamsHbCB& rp, const std::string& filename,
+                     const std::string& dirpath) {
     // Create a data/run_name folder if doesn't exists
-    fs::path base_dir("data");
+    fs::path base_dir(dirpath);
     fs::path dir = base_dir / filename;
 
     try {
@@ -159,7 +162,6 @@ void io::save_params(const RunParamsHbCB& rp, const std::string& filename) {
 
     file << "#Save params\n";
     file << "save_each_shifts = " << rp.save_each_shifts << "\n\n";
-
 
     file.close();
     std::cout << "Parameters saved in " << filepath << "\n";
@@ -211,7 +213,8 @@ void io::load_params(const std::string& filename, RunParamsECB& rp) {
     if (config.count("poisson")) rp.ecmc_params.poisson = (config["poisson"] == "true");
     if (config.count("epsilon_set")) rp.ecmc_params.epsilon_set = std::stod(config["epsilon_set"]);
 
-    if (config.count("N_shift_plaquette")) rp.N_shift_plaquette = std::stoi(config["N_shift_plaquette"]);
+    if (config.count("N_shift_plaquette"))
+        rp.N_shift_plaquette = std::stoi(config["N_shift_plaquette"]);
     // Run and topo params
     if (config.count("N_shift_therm")) rp.N_therm = std::stoi(config["N_shift_therm"]);
     if (config.count("topo")) rp.topo = (config["topo"] == "true");
@@ -221,7 +224,9 @@ void io::load_params(const std::string& filename, RunParamsECB& rp) {
     //
     // Run name
     if (config.count("run_name")) rp.run_name = config["run_name"];
-    if (config.count("save_each_shifts")) rp.save_each_shifts = std::stoi(config["save_each_shifts"]);
+    if (config.count("run_dir")) rp.run_dir = config["run_dir"];
+    if (config.count("save_each_shifts"))
+        rp.save_each_shifts = std::stoi(config["save_each_shifts"]);
 }
 
 // Loads the params contained in filename into rp
@@ -257,7 +262,8 @@ void io::load_params(const std::string& filename, RunParamsHbCB& rp) {
     rp.hp.N_samples = 1;
     if (config.count("N_sweeps")) rp.hp.N_sweeps = std::stoi(config["N_sweeps"]);
     if (config.count("N_hits")) rp.hp.N_hits = std::stoi(config["N_hits"]);
-    if (config.count("N_shift_plaquette")) rp.N_shift_plaquette = std::stoi(config["N_shift_plaquette"]);
+    if (config.count("N_shift_plaquette"))
+        rp.N_shift_plaquette = std::stoi(config["N_shift_plaquette"]);
 
     // Run and topo params
     if (config.count("N_shift_therm")) rp.N_therm = std::stoi(config["N_shift_therm"]);
@@ -268,7 +274,9 @@ void io::load_params(const std::string& filename, RunParamsHbCB& rp) {
 
     // Run name
     if (config.count("run_name")) rp.run_name = config["run_name"];
-    if (config.count("save_each_shifts")) rp.save_each_shifts = std::stoi(config["save_each_shifts"]);
+    if (config.count("run_dir")) rp.run_dir = config["run_dir"];
+    if (config.count("save_each_shifts"))
+        rp.save_each_shifts = std::stoi(config["save_each_shifts"]);
 }
 
 // Print parameters of the run
@@ -284,25 +292,25 @@ void print_parameters(const RunParamsHbCB& rp, const mpi::MpiTopology& topo) {
 
         std::cout << "---Run params---\n";
         std::cout << "Initial seed : " << rp.seed << "\n";
-        std::cout << "Thermalization shifts : " << rp.N_therm <<"\n";
+        std::cout << "Thermalization shifts : " << rp.N_therm << "\n";
         std::cout << "Number of shifts : " << rp.N_shift << "\n";
         std::cout << "Number of e/o switchs per shift : " << rp.N_switch_eo << "\n";
         std::cout << "Save each : " << rp.save_each_shifts << " shifts\n\n";
-        
+
         std::cout << "---Heatbath params---\n";
         std::cout << "Beta : " << rp.hp.beta << "\n";
         std::cout << "Number of sweeps : " << rp.hp.N_sweeps << "\n";
         std::cout << "Number of hits : " << rp.hp.N_hits << "\n\n";
 
         std::cout << "---Measures params---\n";
-        std::cout << "Number of <P> samples : " << rp.N_shift/rp.N_shift_plaquette << "\n";
+        std::cout << "Number of <P> samples : " << rp.N_shift / rp.N_shift_plaquette << "\n";
         std::cout << "Measure <P> each : " << rp.N_shift_plaquette << " shifts\n";
         std::cout << "Measure topo : " << (rp.topo ? "Yes" : "No") << "\n";
-        if (rp.topo){
-            std::cout << "Number of Q samples : " << rp.N_shift/rp.N_shift_topo << "\n";
+        if (rp.topo) {
+            std::cout << "Number of Q samples : " << rp.N_shift / rp.N_shift_topo << "\n";
             std::cout << "Measure Q each : " << rp.N_shift_topo << " shifts\n\n";
             std::cout << "---Gradient Flow---\n";
-            std::cout << "Number of RK3 steps per GF step : " << rp.N_rk_steps <<"\n";
+            std::cout << "Number of RK3 steps per GF step : " << rp.N_rk_steps << "\n";
             std::cout << "Number of GF steps : " << rp.N_steps_gf << "\n";
         }
         std::cout << "==========================================" << std::endl;
@@ -374,13 +382,34 @@ bool io::read_params(RunParamsHbCB& params, int rank, const std::string& input) 
     if (name_len > 0) {
         MPI_Bcast(&params.run_name[0], name_len, MPI_CHAR, 0, MPI_COMM_WORLD);
     }
-    bool local_existing = fs::exists("data/" + params.run_name + "/" + params.run_name) and
-                          fs::exists("data/" + params.run_name + "/" + params.run_name + "_seed/" +
-                                     params.run_name + "_seed" + std::to_string(rank) + ".txt");
-    bool global_existing;
-    // On vérifie que TOUS les processus ont trouvé leurs fichiers
-    MPI_Allreduce(&local_existing, &global_existing, 1, MPI_C_BOOL, MPI_LAND, MPI_COMM_WORLD);
+    // 3. Diffusion de la std::string (run_dir)
+    int dir_len;
+    if (rank == 0) {
+        dir_len = static_cast<int>(params.run_dir.size());
+    }
 
+    // On envoie d'abord la taille de la string
+    MPI_Bcast(&dir_len, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    // Les autres ranks préparent leur mémoire
+    if (rank != 0) {
+        params.run_dir.resize(dir_len);
+    }
+
+    // On envoie le contenu de la string (le buffer interne)
+    if (dir_len > 0) {
+        MPI_Bcast(&params.run_dir[0], dir_len, MPI_CHAR, 0, MPI_COMM_WORLD);
+    }
+
+    fs::path base_path = fs::path(params.run_dir) / params.run_name;
+    fs::path config_file = base_path / params.run_name;
+    fs::path seed_file = base_path / (params.run_name + "_seed") /
+                         (params.run_name + "_seed" + std::to_string(rank) + ".txt");
+
+    bool local_existing = fs::exists(config_file) && fs::exists(seed_file);
+
+    bool global_existing;
+    MPI_Allreduce(&local_existing, &global_existing, 1, MPI_C_BOOL, MPI_LAND, MPI_COMM_WORLD);
     if (global_existing) {
         if (rank == 0) std::cout << "All ranks found existing configuration. Resuming...\n";
         return true;
@@ -401,11 +430,11 @@ void print_parameters(const RunParamsECB& rp, const mpi::MpiTopology& topo) {
 
         std::cout << "---Run params---\n";
         std::cout << "Initial seed : " << rp.seed << "\n";
-        std::cout << "Thermalization shifts : " << rp.N_therm <<"\n";
+        std::cout << "Thermalization shifts : " << rp.N_therm << "\n";
         std::cout << "Number of shifts : " << rp.N_shift << "\n";
         std::cout << "Number of e/o switchs per shift : " << rp.N_switch_eo << "\n";
         std::cout << "Save each : " << rp.save_each_shifts << " shifts\n\n";
-        
+
         std::cout << "---ECMC params---\n";
         std::cout << "Beta : " << rp.ecmc_params.beta << "\n";
         std::cout << "Theta sample : " << rp.ecmc_params.param_theta_sample << "\n";
@@ -414,23 +443,24 @@ void print_parameters(const RunParamsECB& rp, const mpi::MpiTopology& topo) {
         std::cout << "Poisson law : " << (rp.ecmc_params.poisson ? "Yes" : "No") << "\n\n";
 
         std::cout << "---Measures params---\n";
-        std::cout << "Number of <P> samples : " << rp.N_shift/rp.N_shift_plaquette << "\n";
+        std::cout << "Number of <P> samples : " << rp.N_shift / rp.N_shift_plaquette << "\n";
         std::cout << "Measure <P> each : " << rp.N_shift_plaquette << " shifts\n";
         std::cout << "Measure topo : " << (rp.topo ? "Yes" : "No") << "\n";
-        if (rp.topo){
-            std::cout << "Number of Q samples : " << rp.N_shift/rp.N_shift_topo << "\n";
+        if (rp.topo) {
+            std::cout << "Number of Q samples : " << rp.N_shift / rp.N_shift_topo << "\n";
             std::cout << "Measure Q each : " << rp.N_shift_topo << " shifts\n\n";
             std::cout << "---Gradient Flow---\n";
-            std::cout << "Number of RK3 steps per GF step : " << rp.N_rk_steps <<"\n";
+            std::cout << "Number of RK3 steps per GF step : " << rp.N_rk_steps << "\n";
             std::cout << "Number of GF steps : " << rp.N_steps_gf << "\n";
         }
         std::cout << "==========================================" << std::endl;
     }
 }
 
-void io::save_params(const RunParamsECB& rp, const std::string& filename) {
+void io::save_params(const RunParamsECB& rp, const std::string& filename,
+                     const std::string& dirpath) {
     // Create a data folder if doesn't exists
-    fs::path base_dir("data");
+    fs::path base_dir(dirpath);
     fs::path dir = base_dir / filename;
 
     try {
@@ -537,16 +567,35 @@ bool io::read_params(RunParamsECB& params, int rank, const std::string& input) {
         MPI_Bcast(&params.run_name[0], name_len, MPI_CHAR, 0, MPI_COMM_WORLD);
     }
 
+    // 3. Diffusion de la std::string (run_dir)
+    int dir_len;
+    if (rank == 0) {
+        dir_len = static_cast<int>(params.run_dir.size());
+    }
+
+    // On envoie d'abord la taille de la string
+    MPI_Bcast(&dir_len, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    // Les autres ranks préparent leur mémoire
+    if (rank != 0) {
+        params.run_dir.resize(dir_len);
+    }
+
+    // On envoie le contenu de la string (le buffer interne)
+    if (dir_len > 0) {
+        MPI_Bcast(&params.run_dir[0], dir_len, MPI_CHAR, 0, MPI_COMM_WORLD);
+    }
     // 4. Vérification de l'existence des fichiers pour la reprise (Resume)
     // On utilise std::filesystem (fs) comme dans ton exemple
-    bool local_existing = fs::exists("data/" + params.run_name + "/" + params.run_name) and
-                          fs::exists("data/" + params.run_name + "/" + params.run_name + "_seed/" +
-                                     params.run_name + "_seed" + std::to_string(rank) + ".txt");
+    fs::path base_path = fs::path(params.run_dir) / params.run_name;
+    fs::path config_file = base_path / params.run_name;
+    fs::path seed_file = base_path / (params.run_name + "_seed") /
+                         (params.run_name + "_seed" + std::to_string(rank) + ".txt");
+
+    bool local_existing = fs::exists(config_file) && fs::exists(seed_file);
 
     bool global_existing;
-    // On s'assure que tout le monde est d'accord pour reprendre
     MPI_Allreduce(&local_existing, &global_existing, 1, MPI_C_BOOL, MPI_LAND, MPI_COMM_WORLD);
-
     if (global_existing) {
         if (rank == 0) std::cout << "All ranks found existing configuration. Resuming...\n";
         return true;
@@ -555,9 +604,9 @@ bool io::read_params(RunParamsECB& params, int rank, const std::string& input) {
     }
 }
 
-//Adds the log of saved shift to params
-void io::add_shift(int shift, const std::string& filename) {
-    fs::path base_dir("data");
+// Adds the log of saved shift to params
+void io::add_shift(int shift, const std::string& filename, const std::string& dirpath) {
+    fs::path base_dir(dirpath);
     fs::path dir = base_dir / filename;
 
     try {
@@ -576,15 +625,13 @@ void io::add_shift(int shift, const std::string& filename) {
         return;
     }
 
-    file << "Saved shift " << shift <<"\n";
+    file << "Saved shift " << shift << "\n";
     file.close();
 };
 
-
-//Add finished to params
-void io::add_finished(const std::string& filename) {
-
-    fs::path base_dir("data");
+// Add finished to params
+void io::add_finished(const std::string& filename, const std::string& dirpath) {
+    fs::path base_dir(dirpath);
     fs::path dir = base_dir / filename;
 
     try {

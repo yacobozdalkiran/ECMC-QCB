@@ -33,8 +33,8 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
     }
 
     if (existing) {
-        read_ildg_clime("data/" + rp.run_name + "/" + rp.run_name, field, geo, topo);
-        fs::path state_path = fs::path("data/" + rp.run_name + "/" + rp.run_name + "_seed") /
+        read_ildg_clime(rp.run_name, rp.run_dir, field, geo, topo);
+        fs::path state_path = fs::path(rp.run_dir) / rp.run_name / (rp.run_name + "_seed") /
                               (rp.run_name + "_seed" + std::to_string(topo.rank) + ".txt");
         std::ifstream ifs(state_path);
         if (ifs.is_open()) {
@@ -75,7 +75,7 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
 
     // Save params
     if (topo.rank == 0) {
-        io::save_params(rp, rp.run_name);
+        io::save_params(rp, rp.run_name, rp.run_dir);
     }
 
     // Print params
@@ -128,8 +128,8 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
     // Sampling
     if (topo.rank == 0) {
         std::cout << "\n\n===========================================\n";
-        std::cout << "Sampling : " << rp.N_shift/rp.N_shift_plaquette << " <P> samples, " << rp.N_shift / rp.N_shift_topo
-                  << " Q samples\n";
+        std::cout << "Sampling : " << rp.N_shift / rp.N_shift_plaquette << " <P> samples, "
+                  << rp.N_shift / rp.N_shift_topo << " Q samples\n";
         std::cout << "===========================================\n";
     }
 
@@ -190,16 +190,16 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
                 std::cout << "\n\n==========================================\n";
                 // Write the output
                 int precision = 10;
-                io::save_plaquette(plaquette, rp.run_name, precision);
+                io::save_plaquette(plaquette, rp.run_name, rp.run_dir, precision);
                 if (rp.topo) {
-                    io::save_topo(tQE_tot, rp.run_name, precision);
+                    io::save_topo(tQE_tot, rp.run_name, rp.run_dir, precision);
                 }
-                io::add_shift(i, rp.run_name);
+                io::add_shift(i, rp.run_name, rp.run_dir);
             }
             // Save seeds
-            io::save_seed(rng, rp.run_name, topo);
+            io::save_seed(rng, rp.run_name, rp.run_dir, topo);
             // Save conf
-            save_ildg_clime("data/" + rp.run_name + "/" + rp.run_name, field, geo, topo);
+            save_ildg_clime(rp.run_name, rp.run_dir, field, geo, topo);
             if (topo.rank == 0) {
                 std::cout << "==========================================\n";
             }
@@ -218,17 +218,17 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
         std::cout << "\n\n==========================================\n";
         // Write the output
         int precision = 10;
-        io::save_plaquette(plaquette, rp.run_name, precision);
+        io::save_plaquette(plaquette, rp.run_name, rp.run_dir, precision);
         if (rp.topo) {
-            io::save_topo(tQE_tot, rp.run_name, precision);
+            io::save_topo(tQE_tot, rp.run_name, rp.run_dir, precision);
         }
-        io::add_shift(rp.N_shift, rp.run_name);
-        io::add_finished(rp.run_name);
+        io::add_shift(rp.N_shift, rp.run_name, rp.run_dir);
+        io::add_finished(rp.run_name, rp.run_dir);
     }
     // Save seeds
-    io::save_seed(rng, rp.run_name, topo);
+    io::save_seed(rng, rp.run_name, rp.run_dir, topo);
     // Save conf
-    save_ildg_clime("data/" + rp.run_name + "/" + rp.run_name, field, geo, topo);
+    save_ildg_clime(rp.run_name, rp.run_dir, field, geo, topo);
     if (topo.rank == 0) {
         std::cout << "==========================================\n";
     }

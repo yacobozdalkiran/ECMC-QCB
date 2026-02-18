@@ -31,8 +31,9 @@ int main(int argc, char* argv[]) {
     GradientFlow flow(0.02, field, geo);
 
     //Load
-    std::string filename="data/conf.ildg";
-    read_ildg_clime(filename, field, geo, topo);
+    std::string filename="conf.ildg";
+    std::string filedir = "data";
+    read_ildg_clime(filename, filedir, field, geo, topo);
     
     //Checks
     double p = mpi::observables::mean_plaquette_global(field, geo, topo);
