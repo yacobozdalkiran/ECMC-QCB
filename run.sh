@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=T16b6.2
+#SBATCH --job-name=E16b6.2
 #SBATCH --output=%x.o
 #SBATCH --time=02:00:00
 #SBATCH --ntasks=256
@@ -12,4 +12,4 @@
 source modules_load.sh
 
 # Run MPI script
-srun build/gauge_hb_cb inputs/hb_cb.txt
+srun build/gauge_ecmc_cb inputs/ecmc_cb.txt

@@ -1,18 +1,18 @@
 #Lattice params
 L_core=4
-n_core_dims=2
+n_core_dims=4
 cold_start=false
 
 #Run params
 seed=12345
-N_shift_therm = 10
-N_shift=50
+N_shift_therm = 3000
+N_shift=5000
 N_switch_eo=2
 
 #ECMC params
 beta=5.8
-param_theta_sample=350
-param_theta_refresh=400
+param_theta_sample=750
+param_theta_refresh=250
 poisson=false
 epsilon_set=0.15
 
@@ -26,6 +26,6 @@ N_steps_gf = 10
 N_rk_steps = 40
 
 #Save params
-run_name = test_ecmc
+run_name = E16b5.8
 run_dir = data
-save_each_shifts = 25
+save_each_shifts = 1000
