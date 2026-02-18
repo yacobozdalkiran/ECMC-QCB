@@ -2,6 +2,7 @@
 
 #include "../io/io.h"
 #include "../mpi/HalosExchange.h"
+#include <iostream>
 
 // Computation of mean plaquette with halos embedded in field (needs field halos exchange first)
 double mpi::observables::mean_plaquette_local(const GaugeField& field, const GeometryCB& geo) {
