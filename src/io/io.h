@@ -19,6 +19,8 @@ void save_topo(const std::vector<double>& tQE, const std::string& filename, int 
 void save_seed(std::mt19937_64& rng, const std::string& filename, mpi::MpiTopology& topo);
 void save_params(const RunParamsHbCB& rp, const std::string& filename);
 void save_params(const RunParamsECB& rp, const std::string& filename);
+void add_shift(int shift, const std::string& filename);
+void add_finished(const std::string& filename);
 // Input
 std::string trim(const std::string& s);
 void load_params(const std::string& filename, RunParamsECB& rp);

@@ -130,6 +130,8 @@ void io::save_params(const RunParamsHbCB& rp, const std::string& filename) {
     }
     file << std::boolalpha;
 
+    file << "\n#########################################################\n\n";
+
     file << "# Lattice params\n";
     file << "L_core=" << rp.L_core << "\n";
     file << "n_core_dims=" << rp.n_core_dims << "\n";
@@ -154,7 +156,10 @@ void io::save_params(const RunParamsHbCB& rp, const std::string& filename) {
     file << "N_shift_topo = " << rp.N_shift_topo << "\n";
     file << "N_steps_gf = " << rp.N_steps_gf << "\n";
     file << "N_rk_steps = " << rp.N_rk_steps << "\n\n";
-    file << "#########################################################\n\n";
+
+    file << "#Save params\n";
+    file << "save_each_shifts = " << rp.save_each_shifts << "\n\n";
+
 
     file.close();
     std::cout << "Parameters saved in " << filepath << "\n";
@@ -216,6 +221,7 @@ void io::load_params(const std::string& filename, RunParamsECB& rp) {
     //
     // Run name
     if (config.count("run_name")) rp.run_name = config["run_name"];
+    if (config.count("save_each_shifts")) rp.save_each_shifts = std::stoi(config["save_each_shifts"]);
 }
 
 // Loads the params contained in filename into rp
@@ -262,6 +268,7 @@ void io::load_params(const std::string& filename, RunParamsHbCB& rp) {
 
     // Run name
     if (config.count("run_name")) rp.run_name = config["run_name"];
+    if (config.count("save_each_shifts")) rp.save_each_shifts = std::stoi(config["save_each_shifts"]);
 }
 
 // Print parameters of the run
@@ -279,7 +286,8 @@ void print_parameters(const RunParamsHbCB& rp, const mpi::MpiTopology& topo) {
         std::cout << "Initial seed : " << rp.seed << "\n";
         std::cout << "Thermalization shifts : " << rp.N_therm <<"\n";
         std::cout << "Number of shifts : " << rp.N_shift << "\n";
-        std::cout << "Number of e/o switchs per shift : " << rp.N_switch_eo << "\n\n";
+        std::cout << "Number of e/o switchs per shift : " << rp.N_switch_eo << "\n";
+        std::cout << "Save each : " << rp.save_each_shifts << " shifts\n\n";
         
         std::cout << "---Heatbath params---\n";
         std::cout << "Beta : " << rp.hp.beta << "\n";
@@ -340,6 +348,7 @@ bool io::read_params(RunParamsHbCB& params, int rank, const std::string& input) 
     MPI_Bcast(&params.N_shift_plaquette, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&params.N_steps_gf, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&params.N_rk_steps, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&params.save_each_shifts, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
     MPI_Bcast(&params.hp.beta, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     MPI_Bcast(&params.hp.N_samples, 1, MPI_INT, 0, MPI_COMM_WORLD);
@@ -394,7 +403,8 @@ void print_parameters(const RunParamsECB& rp, const mpi::MpiTopology& topo) {
         std::cout << "Initial seed : " << rp.seed << "\n";
         std::cout << "Thermalization shifts : " << rp.N_therm <<"\n";
         std::cout << "Number of shifts : " << rp.N_shift << "\n";
-        std::cout << "Number of e/o switchs per shift : " << rp.N_switch_eo << "\n\n";
+        std::cout << "Number of e/o switchs per shift : " << rp.N_switch_eo << "\n";
+        std::cout << "Save each : " << rp.save_each_shifts << " shifts\n\n";
         
         std::cout << "---ECMC params---\n";
         std::cout << "Beta : " << rp.ecmc_params.beta << "\n";
@@ -440,6 +450,8 @@ void io::save_params(const RunParamsECB& rp, const std::string& filename) {
     }
     file << std::boolalpha;
 
+    file << "\n#########################################################\n\n";
+
     file << "# Lattice params\n";
     file << "L_core = " << rp.L_core << "\n";
     file << "n_core_dims = " << rp.n_core_dims << "\n";
@@ -466,7 +478,9 @@ void io::save_params(const RunParamsECB& rp, const std::string& filename) {
     file << "N_shift_topo = " << rp.N_shift_topo << "\n";
     file << "N_steps_gf = " << rp.N_steps_gf << "\n";
     file << "N_rk_steps = " << rp.N_rk_steps << "\n\n";
-    file << "#########################################################\n\n";
+
+    file << "#Save params\n";
+    file << "save_each_shifts = " << rp.save_each_shifts << "\n\n";
 
     file.close();
     std::cout << "Parameters saved in " << filepath << "\n";
@@ -497,6 +511,7 @@ bool io::read_params(RunParamsECB& params, int rank, const std::string& input) {
     MPI_Bcast(&params.N_shift_topo, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&params.N_steps_gf, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&params.N_rk_steps, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&params.save_each_shifts, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
     // 2. Diffusion du bloc ECMCParams (ecmc_params)
     MPI_Bcast(&params.ecmc_params.beta, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
@@ -539,3 +554,55 @@ bool io::read_params(RunParamsECB& params, int rank, const std::string& input) {
         return false;
     }
 }
+
+//Adds the log of saved shift to params
+void io::add_shift(int shift, const std::string& filename) {
+    fs::path base_dir("data");
+    fs::path dir = base_dir / filename;
+
+    try {
+        if (!fs::exists(dir)) {
+            fs::create_directories(dir);
+        }
+    } catch (const fs::filesystem_error& e) {
+        std::cerr << "Couldn't create folder data : " << e.what() << std::endl;
+        return;
+    }
+    fs::path filepath = dir / (filename + "_params.txt");
+
+    std::ofstream file(filepath, std::ios::out | std::ios::app);
+    if (!file.is_open()) {
+        std::cout << "Could not open file " << filepath << "\n";
+        return;
+    }
+
+    file << "Saved shift " << shift <<"\n";
+    file.close();
+};
+
+
+//Add finished to params
+void io::add_finished(const std::string& filename) {
+
+    fs::path base_dir("data");
+    fs::path dir = base_dir / filename;
+
+    try {
+        if (!fs::exists(dir)) {
+            fs::create_directories(dir);
+        }
+    } catch (const fs::filesystem_error& e) {
+        std::cerr << "Couldn't create folder data : " << e.what() << std::endl;
+        return;
+    }
+    fs::path filepath = dir / (filename + "_params.txt");
+
+    std::ofstream file(filepath, std::ios::out | std::ios::app);
+    if (!file.is_open()) {
+        std::cout << "Could not open file " << filepath << "\n";
+        return;
+    }
+
+    file << "Saved final state !\n";
+    file.close();
+};

@@ -27,3 +27,4 @@ N_rk_steps = 40
 
 #Save params
 run_name = test_ecmc
+save_each_shifts = 25

@@ -38,6 +38,7 @@ struct RunParamsECB {
     int N_steps_gf = 10;
     int N_rk_steps = 40;
     std::string run_name="c";
+    int save_each_shifts = 2; //save confs/measures/seed each 
 };
 
 struct RunParamsHbCB {
@@ -55,6 +56,7 @@ struct RunParamsHbCB {
     int N_steps_gf = 10;
     int N_rk_steps = 40;
     std::string run_name="c";
+    int save_each_shifts = 2; //save confs/measures/seed each 
 };
 
 #endif  // ECMC_MPI_PARAMS_H

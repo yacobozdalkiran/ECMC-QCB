@@ -60,13 +60,19 @@ void generate_hb_cb(const RunParamsHbCB& rp, bool existing) {
 
     // Measure vectors
     std::vector<double> plaquette;
-    plaquette.reserve(rp.N_shift / rp.N_shift_plaquette);
+    plaquette.reserve(rp.save_each_shifts / rp.N_shift_plaquette + 2);
 
     std::vector<double> tQE_tot;
     std::vector<double> tQE_current;
     if (rp.topo) {
-        tQE_tot.reserve((rp.N_shift / rp.N_shift_topo) * 3 * rp.N_rk_steps * rp.N_steps_gf);
+        tQE_tot.reserve(3 * (rp.save_each_shifts / rp.N_shift_topo + 2) * rp.N_rk_steps *
+                        rp.N_steps_gf);
         tQE_current.reserve(3 * rp.N_rk_steps * rp.N_steps_gf);
+    }
+
+    // Save params
+    if (topo.rank == 0) {
+        io::save_params(rp, rp.run_name);
     }
 
     // Print params
@@ -171,26 +177,53 @@ void generate_hb_cb(const RunParamsHbCB& rp, bool existing) {
             tQE_tot.insert(tQE_tot.end(), std::make_move_iterator(tQE_current.begin()),
                            std::make_move_iterator(tQE_current.end()));
         }
+
+        // Save conf/seed/obs
+        if (i % rp.save_each_shifts == 0) {
+            if (topo.rank == 0) {
+                std::cout << "\n\n==========================================\n";
+                // Write the output
+                int precision = 10;
+                io::save_plaquette(plaquette, rp.run_name, precision);
+                if (rp.topo) {
+                    io::save_topo(tQE_tot, rp.run_name, precision);
+                }
+                io::add_shift(i, rp.run_name);
+            }
+            // Save seeds
+            io::save_seed(rng, rp.run_name, topo);
+            // Save conf
+            save_ildg_clime("data/" + rp.run_name + "/" + rp.run_name, field, geo, topo);
+            if (topo.rank == 0) {
+                std::cout << "==========================================\n";
+            }
+            //Clear the measures
+            plaquette.clear();
+            plaquette.reserve(rp.save_each_shifts/rp.N_shift_plaquette +2);
+            tQE_tot.clear();
+            tQE_tot.reserve(3 * (rp.save_each_shifts/rp.N_shift_topo+2) *  rp.N_rk_steps * rp.N_steps_gf);
+        }
     }
 
     //===========================Output======================================
 
     if (topo.rank == 0) {
-        std::cout << "\n\n===========================================\n";
+        std::cout << "\n\n==========================================\n";
         // Write the output
         int precision = 10;
         io::save_plaquette(plaquette, rp.run_name, precision);
         if (rp.topo) {
             io::save_topo(tQE_tot, rp.run_name, precision);
         }
-        io::save_params(rp, rp.run_name);
+        io::add_shift(rp.N_shift, rp.run_name);
+        io::add_finished(rp.run_name);
     }
     // Save seeds
     io::save_seed(rng, rp.run_name, topo);
     // Save conf
     save_ildg_clime("data/" + rp.run_name + "/" + rp.run_name, field, geo, topo);
-    if (topo.rank == 0){
-        std::cout << "===========================================\n";
+    if (topo.rank == 0) {
+        std::cout << "==========================================\n";
     }
 }
 
