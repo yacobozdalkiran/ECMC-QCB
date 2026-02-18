@@ -1,12 +1,12 @@
 #Lattice params
 L_core=4
-n_core_dims=2
+n_core_dims=4
 cold_start=false
 
 #Run params
 seed=12345
-N_shift_therm = 10
-N_shift=50
+N_shift_therm = 1000
+N_shift=5000
 N_switch_eo=2
 
 #Heatbath params
@@ -24,6 +24,6 @@ N_steps_gf = 10
 N_rk_steps = 40
 
 #Save params
-run_name = test_hb
+run_name = T16 
 run_dir = data
-save_each_shifts = 25
+save_each_shifts = 1000
