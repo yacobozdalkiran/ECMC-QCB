@@ -33,6 +33,7 @@ struct RunParamsECB {
     ECMCParams ecmc_params{};  // Params of the ECMC for each even/odd update
     int N_therm = 100;     //Number of thermalisation shifts
     bool topo = true;
+    int N_shift_plaquette = 2; //Measure plaquette every N_shift_plaquette_shift
     int N_shift_topo = 10; //Measure topo charge every N_shift_topo shift
     int N_steps_gf = 10;
     int N_rk_steps = 40;
@@ -49,6 +50,7 @@ struct RunParamsHbCB {
     HbParams hp{};  // Hb params for each even/odd update
     int N_therm = 100;     //Number of thermalisation shifts
     bool topo = true;
+    int N_shift_plaquette = 2; //Measure plaquette every N_shift_plaquette_shift
     int N_shift_topo = 10; //Measure topo charge every N_shift_topo shift
     int N_steps_gf = 10;
     int N_rk_steps = 40;

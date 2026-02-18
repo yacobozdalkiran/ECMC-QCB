@@ -1,18 +1,27 @@
+#Lattice params
 L_core=4
 n_core_dims=2
 cold_start=false
+
+#Run params
+seed=12345
+N_shift_therm = 0
 N_shift=50
 N_switch_eo=2
-seed=12345
 
+#Heatbath params
 beta = 5.8
 N_sweeps = 1
 N_hits = 1
 
-N_therm = 0
+#Plaquette params
+N_shift_plaquette = 2
+
+#Topo params
 topo = true
 N_shift_topo = 25
 N_steps_gf = 10
 N_rk_steps = 40
 
-run_name = test_hb_shift
+#Save params
+run_name = test_hb

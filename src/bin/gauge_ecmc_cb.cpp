@@ -63,7 +63,7 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
 
     // Measure vectors
     std::vector<double> plaquette;
-    plaquette.reserve(rp.N_shift);
+    plaquette.reserve(rp.N_shift / rp.N_shift_plaquette);
 
     std::vector<double> tQE_tot;
     std::vector<double> tQE_current;
@@ -83,8 +83,8 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
     }
 
     for (int i = 0; i < rp.N_therm; i++) {
-        if (topo.rank == 0){
-            std::cout << "==========" << "(Therm) Sample " << i << "==========\n";
+        if (topo.rank == 0) {
+            std::cout << "==========" << "(Therm) Shift " << i << "==========\n";
         }
         for (int j = 0; j < N_switch_eo; j++) {
             // Even parity :
@@ -105,10 +105,12 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
         }
 
         // Plaquette measure (not saved for thermalization)
-        double p = mpi::observables::mean_plaquette_global(field, geo, topo);
-        if (topo.rank == 0) {
-            std::cout << "(Therm) Sample " << i << ", <P> = " << p << " ";
-            std::cout << "\n";
+        if (i % rp.N_shift_plaquette == 0) {
+            double p = mpi::observables::mean_plaquette_global(field, geo, topo);
+            if (topo.rank == 0) {
+                std::cout << "====== Plaquette ======\n";
+                std::cout << "(Therm) Sample " << i/rp.N_shift_plaquette << ", <P> = " << p << "\n";
+            }
         }
         // Random shift
         mpi::shift::random_shift(field, geo, halo_shift, topo, rng);
@@ -121,8 +123,8 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
     }
 
     for (int i = 0; i < N_shift; i++) {
-        if (topo.rank == 0){
-            std::cout << "=============" << "Sample " << i << "=============\n";
+        if (topo.rank == 0) {
+            std::cout << "=============" << "Shift " << i << "=============\n";
         }
         for (int j = 0; j < N_switch_eo; j++) {
             // Even parity :
@@ -143,23 +145,26 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
         }
 
         // Plaquette measure
-        double p = mpi::observables::mean_plaquette_global(field, geo, topo);
-        if (topo.rank == 0) {
-            std::cout << "Sample " << i << ", <P> = " << p << " ";
-            std::cout << "\n";
+        if (i % rp.N_shift_plaquette == 0) {
+            double p = mpi::observables::mean_plaquette_global(field, geo, topo);
+            if (topo.rank == 0) {
+                std::cout << "====== Plaquette ======\n";
+                std::cout << "Sample " << i/rp.N_shift_plaquette << ", <P> = " << p << "\n";
+            }
+            plaquette.emplace_back(p);
         }
-        plaquette.emplace_back(p);
         // Measure topo
         if (rp.topo and (i % rp.N_shift_topo == 0)) {
-            if (topo.rank == 0){
-                std::cout << "Measuring Q sample " << i/rp.N_shift_topo << "\n";
+            if (topo.rank == 0) {
+                std::cout << "====== Topology ======\n";
+                std::cout << "Sample " << i/rp.N_shift_topo << "\n";
             }
             tQE_current = mpi::observables::topo_charge_flowed(field, geo, flow, topo,
                                                                rp.N_steps_gf, rp.N_rk_steps);
             tQE_tot.insert(tQE_tot.end(), std::make_move_iterator(tQE_current.begin()),
                            std::make_move_iterator(tQE_current.end()));
         }
-        
+
         // Random shift
         mpi::shift::random_shift(field, geo, halo_shift, topo, rng);
     }

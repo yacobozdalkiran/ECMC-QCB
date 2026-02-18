@@ -60,7 +60,7 @@ void generate_hb_cb(const RunParamsHbCB& rp, bool existing) {
 
     // Measure vectors
     std::vector<double> plaquette;
-    plaquette.reserve(rp.N_shift);
+    plaquette.reserve(rp.N_shift / rp.N_shift_plaquette);
 
     std::vector<double> tQE_tot;
     std::vector<double> tQE_current;
@@ -80,8 +80,8 @@ void generate_hb_cb(const RunParamsHbCB& rp, bool existing) {
         std::cout << "Thermalisation : " << rp.N_therm << " shifts\n";
     }
     for (int i = 0; i < rp.N_therm; i++) {
-        if (topo.rank == 0){
-            std::cout << "==========" << "(Therm) Sample " << i << "==========\n";
+        if (topo.rank == 0) {
+            std::cout << "==========" << "(Therm) Shift " << i << "==========\n";
         }
         for (int j = 0; j < N_switch_eo; j++) {
             // Even parity :
@@ -101,10 +101,12 @@ void generate_hb_cb(const RunParamsHbCB& rp, bool existing) {
         }
 
         // Plaquette measure (not saved for thermalization)
-        double p = mpi::observables::mean_plaquette_global(field, geo, topo);
-        if (topo.rank == 0) {
-            std::cout << "(Therm) Sample " << i << ", <P> = " << p << " ";
-            std::cout << "\n";
+        if (i % rp.N_shift_plaquette == 0) {
+            double p = mpi::observables::mean_plaquette_global(field, geo, topo);
+            if (topo.rank == 0) {
+                std::cout << "====== Plaquette ======\n";
+                std::cout << "(Therm) Sample " << i/rp.N_shift_plaquette << ", <P> = " << p << "\n";
+            }
         }
         // Random shift
         mpi::shift::random_shift(field, geo, halo_shift, topo, rng);
@@ -112,14 +114,16 @@ void generate_hb_cb(const RunParamsHbCB& rp, bool existing) {
 
     // Sampling
     if (topo.rank == 0) {
-        std::cout << "Sampling : " << rp.N_shift << " <P> samples, " << rp.N_shift / rp.N_shift_topo
-                  << " Q samples\n";
+        std::cout << "Sampling : " << rp.N_shift / rp.N_shift_plaquette << " <P> samples, "
+                  << rp.N_shift / rp.N_shift_topo << " Q samples\n";
     }
 
     for (int i = 0; i < N_shift; i++) {
-        if (topo.rank == 0){
-            std::cout << "=============" << "Sample " << i << "=============\n";
+        if (topo.rank == 0) {
+            std::cout << "=============" << "Shift " << i << "=============\n";
         }
+        // Random shift
+        mpi::shift::random_shift(field, geo, halo_shift, topo, rng);
         for (int j = 0; j < N_switch_eo; j++) {
             // Even parity :
             if (topo.rank == 0) {
@@ -138,24 +142,25 @@ void generate_hb_cb(const RunParamsHbCB& rp, bool existing) {
         }
 
         // Plaquette measure
-        double p = mpi::observables::mean_plaquette_global(field, geo, topo);
-        if (topo.rank == 0) {
-            std::cout << "Sample " << i << ", <P> = " << p << " ";
-            std::cout << "\n";
+        if (i % rp.N_shift_plaquette == 0) {
+            double p = mpi::observables::mean_plaquette_global(field, geo, topo);
+            if (topo.rank == 0) {
+                std::cout << "====== Plaquette ======\n";
+                std::cout << "Sample " << i/rp.N_shift_plaquette << ", <P> = " << p << "\n";
+            }
+            plaquette.emplace_back(p);
         }
-        plaquette.emplace_back(p);
         // Measure topo
         if (rp.topo and (i % rp.N_shift_topo == 0)) {
-            if (topo.rank == 0){
-                std::cout << "Measuring Q sample " << i/rp.N_shift_topo << "\n";
+            if (topo.rank == 0) {
+                std::cout << "====== Topology ======\n";
+                std::cout << "Sample " << i/rp.N_shift_topo << "\n";
             }
             tQE_current = mpi::observables::topo_charge_flowed(field, geo, flow, topo,
                                                                rp.N_steps_gf, rp.N_rk_steps);
             tQE_tot.insert(tQE_tot.end(), std::make_move_iterator(tQE_current.begin()),
                            std::make_move_iterator(tQE_current.end()));
         }
-        // Random shift
-        mpi::shift::random_shift(field, geo, halo_shift, topo, rng);
     }
 
     //===========================Output======================================
