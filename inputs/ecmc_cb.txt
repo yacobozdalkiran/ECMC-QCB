@@ -5,7 +5,7 @@ cold_start=false
 
 #Run params
 seed=12345
-N_shift_therm = 0
+N_shift_therm = 10
 N_shift=50
 N_switch_eo=2
 

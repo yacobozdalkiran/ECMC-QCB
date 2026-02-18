@@ -77,12 +77,16 @@ void generate_hb_cb(const RunParamsHbCB& rp, bool existing) {
     // Thermalisation
 
     if (topo.rank == 0) {
+        std::cout << "\n\n===========================================\n";
         std::cout << "Thermalisation : " << rp.N_therm << " shifts\n";
+        std::cout << "===========================================\n";
     }
     for (int i = 0; i < rp.N_therm; i++) {
         if (topo.rank == 0) {
-            std::cout << "==========" << "(Therm) Shift " << i << "==========\n";
+            std::cout << "\n\n==========" << "(Therm) Shift " << i << "==========\n";
         }
+        // Random shift
+        mpi::shift::random_shift(field, geo, halo_shift, topo, rng);
         for (int j = 0; j < N_switch_eo; j++) {
             // Even parity :
             if (topo.rank == 0) {
@@ -105,23 +109,25 @@ void generate_hb_cb(const RunParamsHbCB& rp, bool existing) {
             double p = mpi::observables::mean_plaquette_global(field, geo, topo);
             if (topo.rank == 0) {
                 std::cout << "====== Plaquette ======\n";
-                std::cout << "(Therm) Sample " << i/rp.N_shift_plaquette << ", <P> = " << p << "\n";
+                std::cout << "(Therm) Sample " << i / rp.N_shift_plaquette << ", <P> = " << p
+                          << "\n";
             }
         }
-        // Random shift
-        mpi::shift::random_shift(field, geo, halo_shift, topo, rng);
     }
 
     // Sampling
     if (topo.rank == 0) {
+        std::cout << "\n\n===========================================\n";
         std::cout << "Sampling : " << rp.N_shift / rp.N_shift_plaquette << " <P> samples, "
                   << rp.N_shift / rp.N_shift_topo << " Q samples\n";
+        std::cout << "===========================================\n";
     }
 
     for (int i = 0; i < N_shift; i++) {
         if (topo.rank == 0) {
-            std::cout << "=============" << "Shift " << i << "=============\n";
+            std::cout << "\n\n=============" << "Shift " << i << "=============\n";
         }
+
         // Random shift
         mpi::shift::random_shift(field, geo, halo_shift, topo, rng);
         for (int j = 0; j < N_switch_eo; j++) {
@@ -146,7 +152,7 @@ void generate_hb_cb(const RunParamsHbCB& rp, bool existing) {
             double p = mpi::observables::mean_plaquette_global(field, geo, topo);
             if (topo.rank == 0) {
                 std::cout << "====== Plaquette ======\n";
-                std::cout << "Sample " << i/rp.N_shift_plaquette << ", <P> = " << p << "\n";
+                std::cout << "Sample " << i / rp.N_shift_plaquette << ", <P> = " << p << "\n";
             }
             plaquette.emplace_back(p);
         }
@@ -154,10 +160,14 @@ void generate_hb_cb(const RunParamsHbCB& rp, bool existing) {
         if (rp.topo and (i % rp.N_shift_topo == 0)) {
             if (topo.rank == 0) {
                 std::cout << "====== Topology ======\n";
-                std::cout << "Sample " << i/rp.N_shift_topo << "\n";
             }
             tQE_current = mpi::observables::topo_charge_flowed(field, geo, flow, topo,
                                                                rp.N_steps_gf, rp.N_rk_steps);
+            if (topo.rank == 0) {
+                std::cout << "Sample " << i / rp.N_shift_topo
+                          << ", final Q = " << tQE_current[tQE_current.size() - 2]
+                          << "\n";  // Print the last value of Q
+            }
             tQE_tot.insert(tQE_tot.end(), std::make_move_iterator(tQE_current.begin()),
                            std::make_move_iterator(tQE_current.end()));
         }
@@ -166,6 +176,7 @@ void generate_hb_cb(const RunParamsHbCB& rp, bool existing) {
     //===========================Output======================================
 
     if (topo.rank == 0) {
+        std::cout << "\n\n===========================================\n";
         // Write the output
         int precision = 10;
         io::save_plaquette(plaquette, rp.run_name, precision);
@@ -178,6 +189,9 @@ void generate_hb_cb(const RunParamsHbCB& rp, bool existing) {
     io::save_seed(rng, rp.run_name, topo);
     // Save conf
     save_ildg_clime("data/" + rp.run_name + "/" + rp.run_name, field, geo, topo);
+    if (topo.rank == 0){
+        std::cout << "===========================================\n";
+    }
 }
 
 int main(int argc, char* argv[]) {
