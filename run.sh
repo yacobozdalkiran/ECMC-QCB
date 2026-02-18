@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=T16
+#SBATCH --job-name=T16b6.2
 #SBATCH --output=%x.o
 #SBATCH --time=02:00:00
 #SBATCH --ntasks=256

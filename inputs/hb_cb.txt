@@ -10,7 +10,7 @@ N_shift=5000
 N_switch_eo=2
 
 #Heatbath params
-beta = 5.8
+beta = 6.2
 N_sweeps = 1
 N_hits = 1
 
@@ -24,6 +24,6 @@ N_steps_gf = 10
 N_rk_steps = 40
 
 #Save params
-run_name = T16 
+run_name = T16b6.2
 run_dir = data
 save_each_shifts = 1000
