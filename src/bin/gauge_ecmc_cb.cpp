@@ -128,7 +128,7 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
     // Sampling
     if (topo.rank == 0) {
         std::cout << "\n\n===========================================\n";
-        std::cout << "Sampling : " << rp.N_shift << " <P> samples, " << rp.N_shift / rp.N_shift_topo
+        std::cout << "Sampling : " << rp.N_shift/rp.N_shift_plaquette << " <P> samples, " << rp.N_shift / rp.N_shift_topo
                   << " Q samples\n";
         std::cout << "===========================================\n";
     }
