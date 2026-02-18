@@ -1,6 +1,7 @@
 #include "ildg.h"
 
 #include <filesystem>
+#include <iostream>
 
 #include "../mpi/HalosExchange.h"
 extern "C" {
