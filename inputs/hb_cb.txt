@@ -5,9 +5,9 @@ cold_start=false
 
 #Run params
 seed=12345
-N_shift_therm = 1000
+N_shift_therm = 2000
 N_shift=5000
-N_switch_eo=2
+N_switch_eo=4
 
 #Heatbath params
 beta = 6.2
@@ -15,15 +15,15 @@ N_sweeps = 1
 N_hits = 1
 
 #Plaquette params
-N_shift_plaquette = 2
+N_shift_plaquette = 1
 
 #Topo params
-topo = true
+topo = true 
 N_shift_topo = 25
 N_steps_gf = 10
 N_rk_steps = 40
 
 #Save params
-run_name = T16b6.2
+run_name = T16b6.2v2
 run_dir = data
 save_each_shifts = 1000
