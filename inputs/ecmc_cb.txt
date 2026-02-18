@@ -11,8 +11,8 @@ N_switch_eo=2
 
 #ECMC params
 beta=5.8
-param_theta_sample=750
-param_theta_refresh=250
+param_theta_sample=250
+param_theta_refresh=350
 poisson=false
 epsilon_set=0.15
 
@@ -26,6 +26,6 @@ N_steps_gf = 10
 N_rk_steps = 40
 
 #Save params
-run_name = E16b5.8
+run_name = E16b5.8v1
 run_dir = data
 save_each_shifts = 1000
