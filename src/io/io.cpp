@@ -17,7 +17,8 @@ extern "C" {
 namespace fs = std::filesystem;
 
 // Saves a vector of doubles in ../data/filename/filename_plaquette.txt
-void io::save_plaquette(const std::vector<double>& data, const std::string& filename, int precision) {
+void io::save_plaquette(const std::vector<double>& data, const std::string& filename,
+                        int precision) {
     // Create a data folder if doesn't exists
     fs::path base_dir("data");
     fs::path dir = base_dir / filename;
@@ -45,7 +46,7 @@ void io::save_plaquette(const std::vector<double>& data, const std::string& file
     std::cout << "Plaquette written in " << filepath << "\n";
 }
 
-//Saves the tQE vector into data/filename/filename_topo.txt
+// Saves the tQE vector into data/filename/filename_topo.txt
 void io::save_topo(const std::vector<double>& tQE, const std::string& filename, int precision) {
     // Create a data folder if doesn't exists
     fs::path base_dir("data");
@@ -74,7 +75,7 @@ void io::save_topo(const std::vector<double>& tQE, const std::string& filename, 
     std::cout << "Topology written in " << filepath << "\n";
 };
 
-//Saves the Mersenne Twister states into data/filename/filename_seed/filename_seed[rank].txt
+// Saves the Mersenne Twister states into data/filename/filename_seed/filename_seed[rank].txt
 void io::save_seed(std::mt19937_64& rng, const std::string& filename, mpi::MpiTopology& topo) {
     // Create a data folder if doesn't exists
     fs::path base_dir("data");
@@ -106,7 +107,7 @@ void io::save_seed(std::mt19937_64& rng, const std::string& filename, mpi::MpiTo
     }
 };
 
-//Saves the run params into data/filename/filename_params.txt
+// Saves the run params into data/filename/filename_params.txt
 void io::save_params(const RunParamsHbCB& rp, const std::string& filename) {
     // Create a data/run_name folder if doesn't exists
     fs::path base_dir("data");
@@ -139,7 +140,6 @@ void io::save_params(const RunParamsHbCB& rp, const std::string& filename) {
 
     file << "# Hb params\n";
     file << "beta = " << rp.hp.beta << "\n";
-    file << "N_samples = " << rp.hp.N_samples << "\n";
     file << "N_sweeps = " << rp.hp.N_sweeps << "\n";
     file << "N_hits = " << rp.hp.N_hits << "\n\n";
 
@@ -163,7 +163,7 @@ std::string io::trim(const std::string& s) {
     return s.substr(first, (last - first + 1));
 }
 
-//Loads the params contained in filename into rp
+// Loads the params contained in filename into rp
 void io::load_params(const std::string& filename, RunParamsECB& rp) {
     std::ifstream file(filename);
     if (!file.is_open()) throw std::runtime_error("Impossible d'ouvrir " + filename);
@@ -192,7 +192,8 @@ void io::load_params(const std::string& filename, RunParamsECB& rp) {
 
     // ECMC params
     if (config.count("beta")) rp.ecmc_params.beta = std::stod(config["beta"]);
-    if (config.count("N_samples")) rp.ecmc_params.N_samples = std::stoi(config["N_samples"]);
+    // 1 sample each run bc frozen links increase artificially the correlation
+    rp.ecmc_params.N_samples = 1;
     if (config.count("param_theta_sample"))
         rp.ecmc_params.param_theta_sample = std::stod(config["param_theta_sample"]);
     if (config.count("param_theta_refresh"))
@@ -211,7 +212,7 @@ void io::load_params(const std::string& filename, RunParamsECB& rp) {
     if (config.count("run_name")) rp.run_name = config["run_name"];
 }
 
-//Loads the params contained in filename into rp
+// Loads the params contained in filename into rp
 void io::load_params(const std::string& filename, RunParamsHbCB& rp) {
     std::ifstream file(filename);
     if (!file.is_open()) throw std::runtime_error("Can't open file " + filename);
@@ -240,7 +241,8 @@ void io::load_params(const std::string& filename, RunParamsHbCB& rp) {
 
     // Hb params
     if (config.count("beta")) rp.hp.beta = std::stod(config["beta"]);
-    if (config.count("N_samples")) rp.hp.N_samples = std::stoi(config["N_samples"]);
+    // 1 sample bc frozen links increase artificially the correlation
+    rp.hp.N_samples = 1;
     if (config.count("N_sweeps")) rp.hp.N_sweeps = std::stoi(config["N_sweeps"]);
     if (config.count("N_hits")) rp.hp.N_hits = std::stoi(config["N_hits"]);
 
@@ -255,7 +257,7 @@ void io::load_params(const std::string& filename, RunParamsHbCB& rp) {
     if (config.count("run_name")) rp.run_name = config["run_name"];
 }
 
-//Print parameters of the run
+// Print parameters of the run
 void print_parameters(const RunParamsHbCB& rp, const mpi::MpiTopology& topo) {
     if (topo.rank == 0) {
         std::cout << "==========================================" << std::endl;
@@ -268,22 +270,20 @@ void print_parameters(const RunParamsHbCB& rp, const mpi::MpiTopology& topo) {
         std::cout << "Number of e/o switchs per shift : " << rp.N_switch_eo << "\n";
         std::cout << "Number of sweeps : " << rp.hp.N_sweeps << "\n";
         std::cout << "Number of hits : " << rp.hp.N_hits << "\n";
-        std::cout << "Number of samples per checkboard step : " << rp.hp.N_samples << "\n";
-        std::cout << "Total number of samples : "
-                  << 2 * rp.N_switch_eo * rp.hp.N_samples * rp.N_shift << "\n";
-        std::cout << "Seed : " << rp.seed << "\n";
+        std::cout << "Number of <P> samples : " << rp.N_shift << "\n";
+        std::cout << "Initial seed : " << rp.seed << "\n";
         std::cout << "==========================================" << std::endl;
     }
 }
 
-//Print time
+// Print time
 void print_time(long elapsed) {
     std::cout << "==========================================" << std::endl;
     std::cout << "Elapsed time : " << elapsed << "s\n";
     std::cout << "==========================================" << std::endl;
 }
 
-//to_string for double with a fixed precision
+// to_string for double with a fixed precision
 std::string io::format_double(double val, int precision) {
     std::stringstream ss;
     ss << std::fixed << std::setprecision(precision) << val;
@@ -354,7 +354,6 @@ bool io::read_params(RunParamsHbCB& params, int rank, const std::string& input) 
     }
 }
 
-
 void print_parameters(const RunParamsECB& rp, const mpi::MpiTopology& topo) {
     if (topo.rank == 0) {
         std::cout << "==========================================" << std::endl;
@@ -365,10 +364,8 @@ void print_parameters(const RunParamsECB& rp, const mpi::MpiTopology& topo) {
         std::cout << "Beta : " << rp.ecmc_params.beta << "\n";
         std::cout << "Total number of shifts : " << rp.N_shift << "\n";
         std::cout << "Number of e/o switchs per shift : " << rp.N_switch_eo << "\n";
-        std::cout << "Number of samples per checkboard step : " << rp.ecmc_params.N_samples << "\n";
-        std::cout << "Total number of samples : "
-                  << 2 * rp.N_switch_eo * rp.ecmc_params.N_samples * rp.N_shift << "\n";
-        std::cout << "Seed : " << rp.seed << "\n";
+        std::cout << "Number of <P> samples : " << rp.N_shift << "\n";
+        std::cout << "Inital seed : " << rp.seed << "\n";
         std::cout << "==========================================" << std::endl;
     }
 }
@@ -405,7 +402,6 @@ void io::save_params(const RunParamsECB& rp, const std::string& filename) {
 
     file << "# ECMC params\n";
     file << "beta = " << rp.ecmc_params.beta << "\n";
-    file << "N_samples = " << rp.ecmc_params.N_samples << "\n";
     file << "theta_sample = " << rp.ecmc_params.param_theta_sample << "\n";
     file << "theta_refresh = " << rp.ecmc_params.param_theta_refresh << "\n";
     file << "epsilon_set = " << rp.ecmc_params.epsilon_set << "\n";

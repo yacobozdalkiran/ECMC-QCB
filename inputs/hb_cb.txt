@@ -1,19 +1,18 @@
 L_core=4
 n_core_dims=2
 cold_start=false
-N_shift=5
+N_shift=50
 N_switch_eo=2
 seed=12345
 
 beta = 5.8
-N_samples = 1
 N_sweeps = 1
 N_hits = 1
 
-N_therm = 10
+N_therm = 0
 topo = true
-N_shift_topo = 5
+N_shift_topo = 25
 N_steps_gf = 10
 N_rk_steps = 40
 
-run_name = test_hb
+run_name = test_hb_shift

@@ -68,12 +68,12 @@ std::vector<double> mpi::heatbathcb::samples(GaugeField& field, const GeometryCB
             }
         }
         // Sample
-        double p = mpi::observables::mean_plaquette_global(field, geo, topo);
-        if (topo.rank == 0) {
-            std::cout << "Sample " << m << ", <P> = " << p << " ";
-            std::cout << "\n";
-            meas[m] = p;
-        }
+       // double p = mpi::observables::mean_plaquette_global(field, geo, topo);
+       // if (topo.rank == 0) {
+       //     std::cout << "Sample " << m << ", <P> = " << p << " ";
+       //     std::cout << "\n";
+       //     meas[m] = p;
+       // }
     }
     return meas;
 }
