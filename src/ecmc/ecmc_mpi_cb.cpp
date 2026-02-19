@@ -41,22 +41,20 @@ void mpi::ecmccb::compute_list_staples(const GaugeField& field, const GeometryCB
 void mpi::ecmccb::solve_reject_fast(double A, double B, double& gamma, double& reject,
                                     int epsilon) {
     if (epsilon == -1) B = -B;
-
-    double R = std::hypot(A, B);
+    double R = std::sqrt(A * A + B * B);
     double invR = 1.0 / R;  // On multiplie par l'inverse, c'est plus rapide que diviser
     double period = 2.0 * R;
 
-    // Calcul du nombre de périodes rejetées (identique à l'original)
     double discarded_number = std::floor(gamma / period);
     gamma -= discarded_number * period;
 
+    // atan2 est indispensable ici
     double phi = std::atan2(-A, B);
     // Remplacement du if par une opération arithmétique simple (plus rapide)
     phi += (phi < 0.0) ? (2.0 * M_PI) : 0.0;
 
     double alpha;
-
-    // Fusion des cas 1 (phi < pi/2) et 2 (phi > 3pi/2)
+    // On simplifie la logique des branches pour aider le prédicteur
     double p1 = R - A;
     if (phi < M_PI / 2.0 || phi > 1.5 * M_PI) {
         alpha = (gamma > p1) ? (gamma - p1) * invR - 1.0 : (gamma + A) * invR;
@@ -69,17 +67,115 @@ void mpi::ecmccb::solve_reject_fast(double A, double B, double& gamma, double& r
         alpha = 1.0;
     else if (alpha < -1.0)
         alpha = -1.0;
-    // Calcul de l'angle unique
+
     double theta = phi + std::asin(alpha);
 
-    // Remplacement de fmod(..., 2*M_PI)
-    if (theta < 0.0) {
+    // Normalisation 2*PI rapide
+    if (theta < 0.0)
         theta += 2.0 * M_PI;
-    } else if (theta >= 2.0 * M_PI) {
+    else if (theta >= 2.0 * M_PI)
         theta -= 2.0 * M_PI;
-    }
 
     reject = theta + 2.0 * M_PI * discarded_number;
+}
+
+// Solves the reject equation
+void mpi::ecmccb::solve_reject(double A, double B, double& gamma, double& reject, int epsilon) {
+    if (epsilon == -1) B = -B;
+    double R = sqrt(A * A + B * B);
+    double phi = atan2(-A, B);
+    // Phi reduction
+    if (phi < 0) phi += 2 * M_PI;
+    double period = 0.0, p1 = 0.0, p2 = 0.0;
+    // To store the 2 intervals on which the derivative of the action is positive
+    std::array<double, 4> intervals = {0.0, 0.0, 2 * M_PI, 2 * M_PI};
+    // Number of periods we discarded for the reject angle
+    int discarded_number = 0;
+
+    if (phi < M_PI / 2.0) {
+        // cout << "cas 1"<< endl;
+        intervals[1] = M_PI / 2.0 + phi;
+        intervals[2] = 3 * M_PI / 2.0 + phi;
+        p1 = R * (sin(intervals[1] - phi) - sin(intervals[0] - phi));
+        p2 = R * (sin(intervals[3] - phi) - sin(intervals[2] - phi));
+        if ((p1 < 0) && (p2 < 0)) std::cerr << "Périodes négatives !" << std::endl;
+        period = p1 + p2;
+        discarded_number = std::floor(gamma / period);
+        gamma = gamma - std::floor(gamma / period) * period;
+        if (gamma > p1) {
+            gamma -= p1;
+            double alpha = gamma / R + sin(intervals[2] - phi);
+            double theta1 = fmod((phi + asin(alpha) + 2 * M_PI), 2 * M_PI);
+            double theta2 = fmod((phi + M_PI - asin(alpha) + 2 * M_PI), 2 * M_PI);
+            if ((theta1 < intervals[3]) && (theta1 > intervals[2])) {
+                reject = theta1;
+            } else {
+                reject = theta2;
+            }
+        } else {
+            double alpha = gamma / R + sin(intervals[0] - phi);
+            double theta1 = fmod((phi + asin(alpha) + 2 * M_PI), 2 * M_PI);
+            double theta2 = fmod((phi + M_PI - asin(alpha) + 2 * M_PI), 2 * M_PI);
+            if ((theta1 < intervals[1]) && (theta1 > intervals[0])) {
+                reject = theta1;
+            } else {
+                reject = theta2;
+            }
+        }
+    }
+    if (phi > 3 * M_PI / 2.0) {
+        // cout << "cas 2" << endl;
+        intervals[1] = -3 * M_PI / 2.0 + phi;
+        intervals[2] = -M_PI / 2.0 + phi;
+        // cout << "[" << intervals[0] << ", " << intervals[1] << "]" << endl;
+        // cout << "[" << intervals[2] << ", " << intervals[3] << "]" << endl;
+        p1 = R * (sin(intervals[1] - phi) - sin(intervals[0] - phi));
+        p2 = R * (sin(intervals[3] - phi) - sin(intervals[2] - phi));
+        if ((p1 < 0) && (p2 < 0)) std::cerr << "Périodes négatives !" << std::endl;
+        period = p1 + p2;
+        // cout << "contrib periodique = " << period << endl;
+        discarded_number = std::floor(gamma / period);
+        gamma = gamma - std::floor(gamma / period) * period;
+        if (gamma > p1) {
+            gamma -= p1;
+            double alpha = gamma / R + sin(intervals[2] - phi);
+            double theta1 = fmod((phi + asin(alpha) + 2 * M_PI), 2 * M_PI);
+            double theta2 = fmod((phi + M_PI - asin(alpha) + 2 * M_PI), 2 * M_PI);
+            if ((theta1 < intervals[3]) && (theta1 > intervals[2])) {
+                reject = theta1;
+            } else {
+                reject = theta2;
+            }
+        } else {
+            double alpha = gamma / R + sin(intervals[0] - phi);
+            double theta1 = fmod((phi + asin(alpha) + 2 * M_PI), 2 * M_PI);
+            double theta2 = fmod((phi + M_PI - asin(alpha) + 2 * M_PI), 2 * M_PI);
+            if ((theta1 < intervals[1]) && (theta1 > intervals[0])) {
+                reject = theta1;
+            } else {
+                reject = theta2;
+            }
+        }
+    }
+    if ((phi >= M_PI / 2.0) && (phi <= 3 * M_PI / 2.0)) {
+        // cout << "cas 3" << endl;
+        intervals[0] = -M_PI / 2.0 + phi;
+        intervals[1] = M_PI / 2.0 + phi;
+        period = R * (sin(intervals[1] - phi) - sin(intervals[0] - phi));
+        if (period < 0) std::cerr << "Période négative !" << std::endl;
+        // cout << "contrib periodique = " << period << endl;
+        discarded_number = std::floor(gamma / period);
+        gamma = gamma - std::floor(gamma / period) * period;
+        double alpha = gamma / R + sin(intervals[0] - phi);
+        double theta1 = fmod((phi + asin(alpha) + 2 * M_PI), 2 * M_PI);
+        double theta2 = fmod((phi + M_PI - asin(alpha) + 2 * M_PI), 2 * M_PI);
+        if ((theta1 < intervals[1]) && (theta1 > intervals[0])) {
+            reject = theta1;
+        } else {
+            reject = theta2;
+        }
+    }
+    reject += 2 * M_PI * discarded_number;
 }
 
 // Generates the 6 reject angles for a link
