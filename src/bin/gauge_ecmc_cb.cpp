@@ -102,16 +102,16 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
                 std::cout << "(Therm) Shift : " << i << ", Switch : " << j << ", Parity : Even\n";
             }
             parity active_parity = even;
-            mpi::exchange::exchange_halos_cascade(field, geo, topo);
             mpi::ecmccb::sample(field, geo, ep, rng, topo, active_parity);
+            mpi::exchange::exchange_halos_cascade(field, geo, topo);
 
             // Odd parity :
             if (topo.rank == 0) {
                 std::cout << "(Therm) Shift : " << i << ", Switch : " << j << ", Parity : Odd\n";
             }
             active_parity = odd;
-            mpi::exchange::exchange_halos_cascade(field, geo, topo);
             mpi::ecmccb::sample(field, geo, ep, rng, topo, active_parity);
+            mpi::exchange::exchange_halos_cascade(field, geo, topo);
         }
 
         // Plaquette measure (not saved for thermalization)
@@ -147,16 +147,16 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
                 std::cout << "Shift : " << i << ", Switch : " << j << ", Parity : Even\n";
             }
             parity active_parity = even;
-            mpi::exchange::exchange_halos_cascade(field, geo, topo);
             mpi::ecmccb::sample(field, geo, ep, rng, topo, active_parity);
+            mpi::exchange::exchange_halos_cascade(field, geo, topo);
 
             // Odd parity :
             if (topo.rank == 0) {
                 std::cout << "Shift : " << i << ", Switch : " << j << ", Parity : Odd\n";
             }
             active_parity = odd;
-            mpi::exchange::exchange_halos_cascade(field, geo, topo);
             mpi::ecmccb::sample(field, geo, ep, rng, topo, active_parity);
+            mpi::exchange::exchange_halos_cascade(field, geo, topo);
         }
 
         // Plaquette measure
