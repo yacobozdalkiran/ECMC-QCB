@@ -117,8 +117,9 @@ add_executable(test src/bin/test.cpp
 target_link_libraries(test PRIVATE MPI::MPI_CXX Eigen3::Eigen lime)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
     target_compile_options(test PRIVATE
-            -O2
-            #-xHost            # Remplace -march=native pour Intel
+            -O3
+            -xHost            # Remplace -march=native pour Intel
+            -qopenmp
             -fp-model precise
             -Wall -Wextra
     )
@@ -151,8 +152,9 @@ add_executable(reject src/bin/reject.cpp
 target_link_libraries(reject PRIVATE MPI::MPI_CXX Eigen3::Eigen lime)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
     target_compile_options(reject PRIVATE
-            -O2
-            #-xHost            # Remplace -march=native pour Intel
+            -O3
+            -xHost            # Remplace -march=native pour Intel
+            -qopenmp
             -fp-model precise
             -Wall -Wextra
     )
