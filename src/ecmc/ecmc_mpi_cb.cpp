@@ -38,7 +38,7 @@ void mpi::ecmccb::compute_list_staples(const GaugeField& field, const GeometryCB
 }
 
 // Optimization of solve_reject
-//void mpi::ecmccb::solve_reject_fast(double A, double B, double& gamma, double& reject,
+// void mpi::ecmccb::solve_reject_fast(double A, double B, double& gamma, double& reject,
 //                                    int epsilon) {
 //    if (epsilon == -1) B = -B;
 //    double R = std::sqrt(A * A + B * B);
@@ -202,34 +202,40 @@ void mpi::ecmccb::compute_reject_angles(const GaugeField& field, size_t site, in
 }
 
 void mpi::ecmccb::compute_reject_angles_fast(const GaugeField& field, size_t site, int mu,
-                                        const std::array<SU3, 6>& list_staple, const SU3& R,
-                                        int epsilon, const double& beta,
-                                        std::array<double, 6>& reject_angles,
-                                        std::mt19937_64& rng) {
+                                             const std::array<SU3, 6>& list_staple, const SU3& R,
+                                             int epsilon, const double& beta,
+                                             std::array<double, 6>& reject_angles,
+                                             std::mt19937_64& rng) {
     static std::uniform_real_distribution<double> unif01_g(0.0, 1.0);
     const double beta_red = -(beta / 3.0);
     const SU3 T = R.adjoint() * field.view_link_const(site, mu);
 
     // 1. Pré-génération des gamma (les RNG sont séquentiels par nature)
     double gammas[6];
-    for(int i=0; i<6; ++i) gammas[i] = -std::log(unif01_g(rng));
+    for (int i = 0; i < 6; ++i) gammas[i] = -std::log(unif01_g(rng));
 
-    // 2. Boucle de calcul parallèle (SIMD)
-    // Avec Intel oneAPI, ce pragma force le compilateur à utiliser SVML pour log/atan2/asin
-    #pragma omp simd
+// 2. Boucle de calcul parallèle (SIMD)
+// Avec Intel oneAPI, ce pragma force le compilateur à utiliser SVML pour log/atan2/asin
+#pragma omp simd
     for (int i = 0; i < 6; i++) {
         // Eigen peut être utilisé à l'intérieur de omp simd si les expressions sont simples
         // Sinon, on accède directement aux données pour garantir la vectorisation
-        
+
         // Calcul ligne 0
-        std::complex<double> m00 = T(0,0)*list_staple[i](0,0) + T(0,1)*list_staple[i](1,0) + T(0,2)*list_staple[i](2,0);
-        std::complex<double> m01 = T(0,0)*list_staple[i](0,1) + T(0,1)*list_staple[i](1,1) + T(0,2)*list_staple[i](2,1);
-        std::complex<double> m02 = T(0,0)*list_staple[i](0,2) + T(0,1)*list_staple[i](1,2) + T(0,2)*list_staple[i](2,2);
-        
+        std::complex<double> m00 = T(0, 0) * list_staple[i](0, 0) + T(0, 1) * list_staple[i](1, 0) +
+                                   T(0, 2) * list_staple[i](2, 0);
+        std::complex<double> m01 = T(0, 0) * list_staple[i](0, 1) + T(0, 1) * list_staple[i](1, 1) +
+                                   T(0, 2) * list_staple[i](2, 1);
+        std::complex<double> m02 = T(0, 0) * list_staple[i](0, 2) + T(0, 1) * list_staple[i](1, 2) +
+                                   T(0, 2) * list_staple[i](2, 2);
+
         // Calcul ligne 1
-        std::complex<double> m10 = T(1,0)*list_staple[i](0,0) + T(1,1)*list_staple[i](1,0) + T(1,2)*list_staple[i](2,0);
-        std::complex<double> m11 = T(1,0)*list_staple[i](0,1) + T(1,1)*list_staple[i](1,1) + T(1,2)*list_staple[i](2,1);
-        std::complex<double> m12 = T(1,0)*list_staple[i](0,2) + T(1,1)*list_staple[i](1,2) + T(1,2)*list_staple[i](2,2);
+        std::complex<double> m10 = T(1, 0) * list_staple[i](0, 0) + T(1, 1) * list_staple[i](1, 0) +
+                                   T(1, 2) * list_staple[i](2, 0);
+        std::complex<double> m11 = T(1, 0) * list_staple[i](0, 1) + T(1, 1) * list_staple[i](1, 1) +
+                                   T(1, 2) * list_staple[i](2, 1);
+        std::complex<double> m12 = T(1, 0) * list_staple[i](0, 2) + T(1, 1) * list_staple[i](1, 2) +
+                                   T(1, 2) * list_staple[i](2, 2);
 
         std::complex<double> P00 = m00 * R(0, 0) + m01 * R(1, 0) + m02 * R(2, 0);
         std::complex<double> P11 = m10 * R(0, 1) + m11 * R(1, 1) + m12 * R(2, 1);
@@ -389,7 +395,9 @@ void mpi::ecmccb::sample(GaugeField& field, const GeometryCB& geo, const ECMCPar
     static std::uniform_int_distribution<int> random_dir(0, 3);
     static std::uniform_int_distribution<int> random_eps(0, 1);
     static std::exponential_distribution<double> dist_sample(1.0 / params.param_theta_sample);
-    static std::exponential_distribution<double> dist_refresh_site(1.0 / params.param_theta_refresh_site);
+    static std::exponential_distribution<double> dist_refresh_site(1.0 /
+                                                                   params.param_theta_refresh_site);
+    static std::exponential_distribution<double> dist_refresh_R(1.0 / params.param_theta_refresh_R);
 
     // Initialisation de la position de la chaine
     size_t site_current = random_site(geo, rng);
@@ -400,8 +408,10 @@ void mpi::ecmccb::sample(GaugeField& field, const GeometryCB& geo, const ECMCPar
     // Budget d'angle
     double theta_sample = poisson ? dist_sample(rng) : params.param_theta_sample;
     double theta_refresh_site = poisson ? dist_refresh_site(rng) : params.param_theta_refresh_site;
+    double theta_refresh_R = poisson ? dist_refresh_R(rng) : params.param_theta_refresh_R;
     double theta_parcouru_sample = 0.0;
     double theta_parcouru_refresh_site = 0.0;
+    double theta_parcouru_refresh_R = 0.0;
 
     // Buffer de matrices (Optimisation : Statique pour éviter l'allocation)
     static std::vector<SU3> set_matrices(101);
@@ -420,7 +430,7 @@ void mpi::ecmccb::sample(GaugeField& field, const GeometryCB& geo, const ECMCPar
 
         compute_list_staples(field, geo, site_current, mu_current, list_staple);
         compute_reject_angles_fast(field, site_current, mu_current, list_staple, R, epsilon_current,
-                              beta, reject_angles, rng);
+                                   beta, reject_angles, rng);
 
         int j = 0;
         double theta_reject = reject_angles[0];
@@ -434,9 +444,11 @@ void mpi::ecmccb::sample(GaugeField& field, const GeometryCB& geo, const ECMCPar
         // Distances aux frontières
         double dist_to_sample = theta_sample - theta_parcouru_sample;
         double dist_to_refresh_site = theta_refresh_site - theta_parcouru_refresh_site;
+        double dist_to_refresh_R = theta_refresh_R - theta_parcouru_refresh_R;
 
         // Premier événement
-        double theta_step = std::min({theta_reject, dist_to_sample, dist_to_refresh_site});
+        double theta_step =
+            std::min({theta_reject, dist_to_sample, dist_to_refresh_site, dist_to_refresh_R});
 
         if (theta_step == dist_to_sample) {
             // --- EVENT: SAMPLE ---
@@ -447,18 +459,30 @@ void mpi::ecmccb::sample(GaugeField& field, const GeometryCB& geo, const ECMCPar
             update(field, site_current, mu_current, dist_to_refresh_site, epsilon_current, R);
 
             theta_parcouru_sample += dist_to_refresh_site;
+            theta_parcouru_refresh_R += dist_to_refresh_site;
             theta_parcouru_refresh_site = 0.0;
             if (poisson) theta_refresh_site = dist_refresh_site(rng);
 
             site_current = random_site(geo, rng);
             mu_current = random_dir(rng);
             epsilon_current = 2 * random_eps(rng) - 1;
+        }else if (theta_step == dist_to_refresh_R) {
+            // --- EVENT: REFRESH R ---
+            update(field, site_current, mu_current, dist_to_refresh_R, epsilon_current, R);
+
+            theta_parcouru_sample += dist_to_refresh_R;
+            theta_parcouru_refresh_site += dist_to_refresh_R;
+            theta_parcouru_refresh_R = 0.0;
+            if (poisson) theta_refresh_R = dist_refresh_R(rng);
+
+            R = random_su3(rng);
         } else {
             // --- EVENT: LIFT ---
             update(field, site_current, mu_current, theta_reject, epsilon_current, R);
 
             theta_parcouru_sample += theta_reject;
             theta_parcouru_refresh_site += theta_reject;
+            theta_parcouru_refresh_R += theta_reject;
 
             auto l =
                 lift_improved_fast(field, geo, site_current, mu_current, j, R, set_matrices, rng);
