@@ -348,7 +348,7 @@ void mpi::ecmccb::sample(GaugeField& field, const GeometryCB& geo, const ECMCPar
     static std::uniform_int_distribution<int> random_dir(0, 3);
     static std::uniform_int_distribution<int> random_eps(0, 1);
     static std::exponential_distribution<double> dist_sample(1.0 / params.param_theta_sample);
-    static std::exponential_distribution<double> dist_refresh(1.0 / params.param_theta_refresh);
+    static std::exponential_distribution<double> dist_refresh_site(1.0 / params.param_theta_refresh_site);
 
     // Initialisation de la position de la chaine
     size_t site_current = random_site(geo, rng);
@@ -358,9 +358,9 @@ void mpi::ecmccb::sample(GaugeField& field, const GeometryCB& geo, const ECMCPar
 
     // Budget d'angle
     double theta_sample = poisson ? dist_sample(rng) : params.param_theta_sample;
-    double theta_refresh = poisson ? dist_refresh(rng) : params.param_theta_refresh;
+    double theta_refresh_site = poisson ? dist_refresh_site(rng) : params.param_theta_refresh_site;
     double theta_parcouru_sample = 0.0;
-    double theta_parcouru_refresh = 0.0;
+    double theta_parcouru_refresh_site = 0.0;
 
     // Buffer de matrices (Optimisation : Statique pour éviter l'allocation)
     static std::vector<SU3> set_matrices(101);
@@ -392,33 +392,32 @@ void mpi::ecmccb::sample(GaugeField& field, const GeometryCB& geo, const ECMCPar
 
         // Distances aux frontières
         double dist_to_sample = theta_sample - theta_parcouru_sample;
-        double dist_to_refresh = theta_refresh - theta_parcouru_refresh;
+        double dist_to_refresh_site = theta_refresh_site - theta_parcouru_refresh_site;
 
         // Premier événement
-        double theta_step = std::min({theta_reject, dist_to_sample, dist_to_refresh});
+        double theta_step = std::min({theta_reject, dist_to_sample, dist_to_refresh_site});
 
         if (theta_step == dist_to_sample) {
             // --- EVENT: SAMPLE ---
             update(field, site_current, mu_current, dist_to_sample, epsilon_current, R);
             return;  // Fin du sweep
-        } else if (theta_step == dist_to_refresh) {
-            // --- EVENT: REFRESH ---
-            update(field, site_current, mu_current, dist_to_refresh, epsilon_current, R);
+        } else if (theta_step == dist_to_refresh_site) {
+            // --- EVENT: REFRESH SITE ---
+            update(field, site_current, mu_current, dist_to_refresh_site, epsilon_current, R);
 
-            theta_parcouru_sample += dist_to_refresh;
-            theta_parcouru_refresh = 0.0;
-            if (poisson) theta_refresh = dist_refresh(rng);
+            theta_parcouru_sample += dist_to_refresh_site;
+            theta_parcouru_refresh_site = 0.0;
+            if (poisson) theta_refresh_site = dist_refresh_site(rng);
 
             site_current = random_site(geo, rng);
             mu_current = random_dir(rng);
             epsilon_current = 2 * random_eps(rng) - 1;
-            R = random_su3(rng);
         } else {
             // --- EVENT: LIFT ---
             update(field, site_current, mu_current, theta_reject, epsilon_current, R);
 
             theta_parcouru_sample += theta_reject;
-            theta_parcouru_refresh += theta_reject;
+            theta_parcouru_refresh_site += theta_reject;
 
             auto l =
                 lift_improved_fast(field, geo, site_current, mu_current, j, R, set_matrices, rng);

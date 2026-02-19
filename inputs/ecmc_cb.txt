@@ -12,7 +12,7 @@ N_switch_eo=2
 #ECMC params
 beta=5.8
 param_theta_sample=250
-param_theta_refresh=350
+param_theta_refresh_site=350
 poisson=false
 epsilon_set=0.15
 

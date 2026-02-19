@@ -10,7 +10,7 @@ struct ECMCParams {
     double beta = 6.0;
     int N_samples = 10;
     double param_theta_sample = 100;
-    double param_theta_refresh = 30;
+    double param_theta_refresh_site = 30;
     bool poisson = false;
     double epsilon_set = 0.15;
 };
