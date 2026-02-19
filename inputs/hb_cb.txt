@@ -1,29 +1,29 @@
 #Lattice params
 L_core=4
-n_core_dims=4
+n_core_dims=2
 cold_start=false
 
 #Run params
 seed=12345
-N_shift_therm = 2000
-N_shift=5000
-N_switch_eo=4
+N_shift_therm = 30
+N_shift=500
+N_switch_eo=2
 
 #Heatbath params
-beta = 6.2
+beta = 5.8
 N_sweeps = 1
 N_hits = 1
 
 #Plaquette params
-N_shift_plaquette = 1
+N_shift_plaquette = 2
 
 #Topo params
-topo = true 
+topo = false
 N_shift_topo = 25
 N_steps_gf = 10
 N_rk_steps = 40
 
 #Save params
-run_name = T16b6.2v2
+run_name = test_hb
 run_dir = data
 save_each_shifts = 1000
