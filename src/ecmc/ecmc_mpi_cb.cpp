@@ -38,46 +38,46 @@ void mpi::ecmccb::compute_list_staples(const GaugeField& field, const GeometryCB
 }
 
 // Optimization of solve_reject
-void mpi::ecmccb::solve_reject_fast(double A, double B, double& gamma, double& reject,
-                                    int epsilon) {
-    if (epsilon == -1) B = -B;
-    double R = std::sqrt(A * A + B * B);
-    double invR = 1.0 / R;  // On multiplie par l'inverse, c'est plus rapide que diviser
-    double period = 2.0 * R;
-
-    double discarded_number = std::floor(gamma / period);
-    gamma -= discarded_number * period;
-
-    // atan2 est indispensable ici
-    double phi = std::atan2(-A, B);
-    // Remplacement du if par une opération arithmétique simple (plus rapide)
-    phi += (phi < 0.0) ? (2.0 * M_PI) : 0.0;
-
-    double alpha;
-    // On simplifie la logique des branches pour aider le prédicteur
-    double p1 = R - A;
-    if (phi < M_PI / 2.0 || phi > 1.5 * M_PI) {
-        alpha = (gamma > p1) ? (gamma - p1) * invR - 1.0 : (gamma + A) * invR;
-    } else {
-        alpha = gamma * invR - 1.0;
-    }
-
-    // Sécurité clamp sans std::max/min (plus facile à vectoriser)
-    if (alpha > 1.0)
-        alpha = 1.0;
-    else if (alpha < -1.0)
-        alpha = -1.0;
-
-    double theta = phi + std::asin(alpha);
-
-    // Normalisation 2*PI rapide
-    if (theta < 0.0)
-        theta += 2.0 * M_PI;
-    else if (theta >= 2.0 * M_PI)
-        theta -= 2.0 * M_PI;
-
-    reject = theta + 2.0 * M_PI * discarded_number;
-}
+//void mpi::ecmccb::solve_reject_fast(double A, double B, double& gamma, double& reject,
+//                                    int epsilon) {
+//    if (epsilon == -1) B = -B;
+//    double R = std::sqrt(A * A + B * B);
+//    double invR = 1.0 / R;  // On multiplie par l'inverse, c'est plus rapide que diviser
+//    double period = 2.0 * R;
+//
+//    double discarded_number = std::floor(gamma / period);
+//    gamma -= discarded_number * period;
+//
+//    // atan2 est indispensable ici
+//    double phi = std::atan2(-A, B);
+//    // Remplacement du if par une opération arithmétique simple (plus rapide)
+//    phi += (phi < 0.0) ? (2.0 * M_PI) : 0.0;
+//
+//    double alpha;
+//    // On simplifie la logique des branches pour aider le prédicteur
+//    double p1 = R - A;
+//    if (phi < M_PI / 2.0 || phi > 1.5 * M_PI) {
+//        alpha = (gamma > p1) ? (gamma - p1) * invR - 1.0 : (gamma + A) * invR;
+//    } else {
+//        alpha = gamma * invR - 1.0;
+//    }
+//
+//    // Sécurité clamp sans std::max/min (plus facile à vectoriser)
+//    if (alpha > 1.0)
+//        alpha = 1.0;
+//    else if (alpha < -1.0)
+//        alpha = -1.0;
+//
+//    double theta = phi + std::asin(alpha);
+//
+//    // Normalisation 2*PI rapide
+//    if (theta < 0.0)
+//        theta += 2.0 * M_PI;
+//    else if (theta >= 2.0 * M_PI)
+//        theta -= 2.0 * M_PI;
+//
+//    reject = theta + 2.0 * M_PI * discarded_number;
+//}
 
 // Solves the reject equation
 void mpi::ecmccb::solve_reject(double A, double B, double& gamma, double& reject, int epsilon) {
@@ -198,6 +198,47 @@ void mpi::ecmccb::compute_reject_angles(const GaugeField& field, size_t site, in
         double A = (P00.real() + P11.real()) * beta_red;
         double B = (-P00.imag() + P11.imag()) * beta_red;
         solve_reject_fast(A, B, gamma, reject_angles[i], epsilon);
+    }
+}
+
+void mpi::ecmccb::compute_reject_angles_fast(const GaugeField& field, size_t site, int mu,
+                                        const std::array<SU3, 6>& list_staple, const SU3& R,
+                                        int epsilon, const double& beta,
+                                        std::array<double, 6>& reject_angles,
+                                        std::mt19937_64& rng) {
+    static std::uniform_real_distribution<double> unif01_g(0.0, 1.0);
+    const double beta_red = -(beta / 3.0);
+    const SU3 T = R.adjoint() * field.view_link_const(site, mu);
+
+    // 1. Pré-génération des gamma (les RNG sont séquentiels par nature)
+    double gammas[6];
+    for(int i=0; i<6; ++i) gammas[i] = -std::log(unif01_g(rng));
+
+    // 2. Boucle de calcul parallèle (SIMD)
+    // Avec Intel oneAPI, ce pragma force le compilateur à utiliser SVML pour log/atan2/asin
+    #pragma omp simd
+    for (int i = 0; i < 6; i++) {
+        // Eigen peut être utilisé à l'intérieur de omp simd si les expressions sont simples
+        // Sinon, on accède directement aux données pour garantir la vectorisation
+        
+        // Calcul ligne 0
+        std::complex<double> m00 = T(0,0)*list_staple[i](0,0) + T(0,1)*list_staple[i](1,0) + T(0,2)*list_staple[i](2,0);
+        std::complex<double> m01 = T(0,0)*list_staple[i](0,1) + T(0,1)*list_staple[i](1,1) + T(0,2)*list_staple[i](2,1);
+        std::complex<double> m02 = T(0,0)*list_staple[i](0,2) + T(0,1)*list_staple[i](1,2) + T(0,2)*list_staple[i](2,2);
+        
+        // Calcul ligne 1
+        std::complex<double> m10 = T(1,0)*list_staple[i](0,0) + T(1,1)*list_staple[i](1,0) + T(1,2)*list_staple[i](2,0);
+        std::complex<double> m11 = T(1,0)*list_staple[i](0,1) + T(1,1)*list_staple[i](1,1) + T(1,2)*list_staple[i](2,1);
+        std::complex<double> m12 = T(1,0)*list_staple[i](0,2) + T(1,1)*list_staple[i](1,2) + T(1,2)*list_staple[i](2,2);
+
+        std::complex<double> P00 = m00 * R(0, 0) + m01 * R(1, 0) + m02 * R(2, 0);
+        std::complex<double> P11 = m10 * R(0, 1) + m11 * R(1, 1) + m12 * R(2, 1);
+
+        double A = (P00.real() + P11.real()) * beta_red;
+        double B = (P11.imag() - P00.imag()) * beta_red;
+
+        // Appel de la version inline vectorisée
+        solve_reject_fast(A, B, gammas[i], reject_angles[i], epsilon);
     }
 }
 
@@ -378,7 +419,7 @@ void mpi::ecmccb::sample(GaugeField& field, const GeometryCB& geo, const ECMCPar
         if (lift_counter % 100 == 0) ecmc_set(params.epsilon_set, set_matrices, rng);
 
         compute_list_staples(field, geo, site_current, mu_current, list_staple);
-        compute_reject_angles(field, site_current, mu_current, list_staple, R, epsilon_current,
+        compute_reject_angles_fast(field, site_current, mu_current, list_staple, R, epsilon_current,
                               beta, reject_angles, rng);
 
         int j = 0;

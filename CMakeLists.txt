@@ -51,8 +51,9 @@ add_executable(gauge_ecmc_cb src/bin/gauge_ecmc_cb.cpp
 target_link_libraries(gauge_ecmc_cb PRIVATE MPI::MPI_CXX Eigen3::Eigen lime)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
     target_compile_options(gauge_ecmc_cb PRIVATE
-            -O2
-            #-xHost            # Remplace -march=native pour Intel
+            -O3
+            -xHost            # Remplace -march=native pour Intel
+            -qopenmp
             -fp-model precise
             -Wall -Wextra
     )
@@ -85,8 +86,9 @@ add_executable(gauge_hb_cb src/bin/gauge_hb_cb.cpp
 target_link_libraries(gauge_hb_cb PRIVATE MPI::MPI_CXX Eigen3::Eigen lime)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
     target_compile_options(gauge_hb_cb PRIVATE
-            -O2
-            #-xHost            # Remplace -march=native pour Intel
+            -O3
+            -xHost            # Remplace -march=native pour Intel
+            -qopenmp
             -fp-model precise
             -Wall -Wextra
     )
