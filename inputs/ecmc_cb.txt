@@ -1,12 +1,12 @@
 #Lattice params
 L_core=4
-n_core_dims=4
+n_core_dims=2
 cold_start=false
 
 #Run params
 seed=12345
-N_shift_therm = 3000
-N_shift=5000
+N_shift_therm = 30
+N_shift=500
 N_switch_eo=2
 
 #ECMC params
@@ -20,12 +20,12 @@ epsilon_set=0.15
 N_shift_plaquette = 2
 
 #Topo params
-topo = true
+topo = false
 N_shift_topo = 25
 N_steps_gf = 10
 N_rk_steps = 40
 
 #Save params
-run_name = E16b5.8v1
+run_name = test
 run_dir = data
 save_each_shifts = 1000
