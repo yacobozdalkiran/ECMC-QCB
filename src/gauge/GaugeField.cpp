@@ -73,27 +73,30 @@ void GaugeField::project_field_su3(const GeometryCB& geo) {
 // Computes the sum of all staples of a site
 void GaugeField::compute_staple(const GeometryCB& geo, size_t site, int mu, SU3& staple) const {
     staple.setZero();
+    size_t x = site;                        // x
+    size_t xmu = geo.get_neigh(x, mu, up);  // x+mu
     for (int nu = 0; nu < 4; nu++) {
         if (nu == mu) {
             continue;
         }
-        size_t x = site;                              // x
-        size_t xmu = geo.get_neigh(x, mu, up);        // x+mu
-        size_t xnu = geo.get_neigh(x, nu, up);        // x+nu
+        // Staple forward
+        size_t xnu = geo.get_neigh(x, nu, up);  // x+nu
+        const auto& U0 = view_link_const(xmu, nu);
+        const auto& U1 = view_link_const(xnu, mu);
+        const auto& U2 = view_link_const(x, nu);
+        staple += U0 * (U2 * U1).adjoint();
+
+        // Staple backward
         size_t xmunu = geo.get_neigh(xmu, nu, down);  // x+mu-nu
         size_t xmnu = geo.get_neigh(x, nu, down);     // x-nu
-        auto U0 = view_link_const(xmu, nu);
-        auto U1 = view_link_const(xnu, mu);
-        auto U2 = view_link_const(x, nu);
-        staple += U0 * U1.adjoint() * U2.adjoint();
         auto V0 = view_link_const(xmunu, nu);
         auto V1 = view_link_const(xmnu, mu);
         auto V2 = view_link_const(xmnu, nu);
-        staple += V0.adjoint() * V1.adjoint() * V2;
+        staple += (V1 * V0).adjoint() * V2;
     }
 }
 
-//Performs a random gauge_transform on the field
+// Performs a random gauge_transform on the field
 void GaugeField::gauge_transform(const GeometryCB& geo, std::mt19937_64& rng) {
     GaugeField transform(geo);
     transform.hot_start(geo, rng);
@@ -101,9 +104,11 @@ void GaugeField::gauge_transform(const GeometryCB& geo, std::mt19937_64& rng) {
         for (int z = 1; z <= L_int; z++)
             for (int y = 1; y <= L_int; y++)
                 for (int x = 1; x <= L_int; x++) {
-                    size_t site = geo.index(x,y,z,t);
+                    size_t site = geo.index(x, y, z, t);
                     for (int mu = 0; mu < 4; mu++) {
-                        view_link(site, mu) = transform.view_link_const(site, mu) * view_link_const(site, mu) * transform.view_link_const(geo.get_neigh(site, mu, up), mu).adjoint();
+                        view_link(site, mu) =
+                            transform.view_link_const(site, mu) * view_link_const(site, mu) *
+                            transform.view_link_const(geo.get_neigh(site, mu, up), mu).adjoint();
                     }
                 }
 };
