@@ -13,23 +13,26 @@
 void mpi::ecmccb::compute_list_staples(const GaugeField& field, const GeometryCB& geo, size_t site,
                                        int mu, std::array<SU3, 6>& list_staple) {
     size_t index = 0;
+    size_t x = site;                        // x
+    size_t xmu = geo.get_neigh(x, mu, up);  // x+mu
     for (int nu = 0; nu < 4; nu++) {
         if (nu == mu) {
             continue;
         }
-        size_t x = site;                              // x
-        size_t xmu = geo.get_neigh(x, mu, up);        // x+mu
-        size_t xnu = geo.get_neigh(x, nu, up);        // x+nu
+        // Staple forward
+        size_t xnu = geo.get_neigh(x, nu, up);  // x+nu
+        const auto& U0 = field.view_link_const(xmu, nu);
+        const auto& U1 = field.view_link_const(xnu, mu);
+        const auto& U2 = field.view_link_const(x, nu);
+        list_staple[index] = U0 * (U2 * U1).adjoint();
+
+        // Staple backward
         size_t xmunu = geo.get_neigh(xmu, nu, down);  // x+mu-nu
         size_t xmnu = geo.get_neigh(x, nu, down);     // x-nu
-        auto U0 = field.view_link_const(xmu, nu);
-        auto U1 = field.view_link_const(xnu, mu);
-        auto U2 = field.view_link_const(x, nu);
-        list_staple[index] = U0 * U1.adjoint() * U2.adjoint();
         auto V0 = field.view_link_const(xmunu, nu);
         auto V1 = field.view_link_const(xmnu, mu);
         auto V2 = field.view_link_const(xmnu, nu);
-        list_staple[index + 1] = V0.adjoint() * V1.adjoint() * V2;
+        list_staple[index + 1] = (V1 * V0).adjoint() * V2;
         index += 2;
     }
 }
@@ -39,7 +42,8 @@ void mpi::ecmccb::solve_reject_fast(double A, double B, double& gamma, double& r
                                     int epsilon) {
     if (epsilon == -1) B = -B;
 
-    double R = std::sqrt(A * A + B * B);
+    double R = std::hypot(A, B);
+    double invR = 1.0 / R;  // On multiplie par l'inverse, c'est plus rapide que diviser
     double period = 2.0 * R;
 
     // Calcul du nombre de périodes rejetées (identique à l'original)
@@ -47,27 +51,22 @@ void mpi::ecmccb::solve_reject_fast(double A, double B, double& gamma, double& r
     gamma -= discarded_number * period;
 
     double phi = std::atan2(-A, B);
-    if (phi < 0.0) phi += 2.0 * M_PI;
+    // Remplacement du if par une opération arithmétique simple (plus rapide)
+    phi += (phi < 0.0) ? (2.0 * M_PI) : 0.0;
 
     double alpha;
 
     // Fusion des cas 1 (phi < pi/2) et 2 (phi > 3pi/2)
-    if (phi < M_PI / 2.0 || phi > 3.0 * M_PI / 2.0) {
-        double p1 = R - A;
-        if (gamma > p1) {
-            gamma -= p1;
-            alpha = gamma / R - 1.0;
-        } else {
-            alpha = (gamma + A) / R;
-        }
+    double p1 = R - A;
+    if (phi < M_PI / 2.0 || phi > 1.5 * M_PI) {
+        alpha = (gamma > p1) ? (gamma - p1) * invR - 1.0 : (gamma + A) * invR;
     } else {
-        // Cas 3 (pi/2 <= phi <= 3pi/2)
-        alpha = gamma / R - 1.0;
+        alpha = gamma * invR - 1.0;
     }
 
-    // Sécurité contre les erreurs d'arrondi flottant avant le std::asin
-    alpha = std::max(-1.0, std::min(1.0, alpha));
-
+    // Sécurité clamp sans std::max/min (plus facile à vectoriser)
+    if (alpha > 1.0) alpha = 1.0;
+    else if (alpha < -1.0) alpha = -1.0;
     // Calcul de l'angle unique
     double theta = phi + std::asin(alpha);
 
@@ -186,15 +185,19 @@ void mpi::ecmccb::compute_reject_angles(const GaugeField& field, size_t site, in
                                         int epsilon, const double& beta,
                                         std::array<double, 6>& reject_angles,
                                         std::mt19937_64& rng) {
+    static std::uniform_real_distribution<double> unif01_g(0.0, 1.0);
+    SU3 T = R.adjoint() * field.view_link_const(site, mu);
+    const double beta_red = -(beta / 3.0);
     for (int i = 0; i < 6; i++) {
-        std::uniform_real_distribution<double> unif01(0.0, 1.0);
-        double gamma = -log(unif01(rng));
-        SU3 P = R.adjoint() * field.view_link_const(site, mu) * list_staple[i] *
-                R;  // * lambda_3 * Complex(0.0, 1.0);
-        double A = P(0, 0).real() + P(1, 1).real();
-        double B = -P(0, 0).imag() + P(1, 1).imag();
-        A *= -(beta / 3.0);
-        B *= -(beta / 3.0);
+        double gamma = -std::log(unif01_g(rng));
+        auto M_row0 = T.row(0) * list_staple[i];
+        auto M_row1 = T.row(1) * list_staple[i];
+        // P(0,0) = M_row0 * R_col0
+        std::complex<double> P00 = M_row0(0) * R(0, 0) + M_row0(1) * R(1, 0) + M_row0(2) * R(2, 0);
+        // P(1,1) = M_row1 * R_col1
+        std::complex<double> P11 = M_row1(0) * R(0, 1) + M_row1(1) * R(1, 1) + M_row1(2) * R(2, 1);
+        double A = (P00.real() + P11.real()) * beta_red;
+        double B = (-P00.imag() + P11.imag()) * beta_red;
         solve_reject_fast(A, B, gamma, reject_angles[i], epsilon);
     }
 }
@@ -288,7 +291,7 @@ std::pair<std::pair<size_t, int>, int> mpi::ecmccb::lift_improved(
     return make_pair(links_plaquette_j[index_lift], new_epsilon);
 }
 
-//Optimised computation of ImTr(lambda_3*R_mat.adjoint()*Pi*R_mat)
+// Optimised computation of ImTr(lambda_3*R_mat.adjoint()*Pi*R_mat)
 double mpi::ecmccb::compute_ds(const SU3& Pi, const SU3& R_mat) {
     // Calcule Im( (R.adj * Pi * R)_00 - (R.adj * Pi * R)_11 )
     // On ne calcule que les colonnes 0 et 1 de (Pi * R)
@@ -385,8 +388,18 @@ std::pair<std::pair<size_t, int>, int> mpi::ecmccb::lift_improved_fast(
 // Updates the gauge field with XY embedding
 void mpi::ecmccb::update(GaugeField& field, size_t site, int mu, double theta, int epsilon,
                          const SU3& R) {
-    SU3 Uold = field.view_link_const(site, mu);
-    field.view_link(site, mu) = R * el_3(epsilon * theta) * R.adjoint() * Uold;
+    const SU3& Uold = field.view_link_const(site, mu);
+    SU3 T = R.adjoint() * Uold;
+    // 3. Application de el_3 de manière "sparse"
+    // el_3 = diag(exp(i*xi), exp(-i*xi), 1)
+    double xi = epsilon * theta;
+    double cxi, sxi;
+    sincos(xi, &sxi, &cxi);  // Utilise sincos si dispo (Linux/GNU), sinon cos et sin
+    std::complex<double> PhasePlus(cxi, sxi);
+    std::complex<double> PhaseMoins(cxi, -sxi);
+    T.row(0) *= PhasePlus;
+    T.row(1) *= PhaseMoins;
+    field.view_link(site, mu) = R * T;
     // projection_su3(links, site, mu);
 }
 
@@ -426,12 +439,6 @@ std::vector<double> mpi::ecmccb::samples_improved(GaugeField& field, const Geome
     static std::uniform_int_distribution<int> random_eps(0, 1);
     static std::exponential_distribution<double> random_theta_sample(1.0 / param_theta_sample);
     static std::exponential_distribution<double> random_theta_refresh(1.0 / param_theta_refresh);
-
-    // Matrice lambda_3 de Gell-Mann
-    SU3 lambda_3;
-    lambda_3 << Complex(1.0, 0.0), Complex(0.0, 0.0), Complex(0.0, 0.0), Complex(0.0, 0.0),
-        Complex(-1.0, 0.0), Complex(0.0, 0.0), Complex(0.0, 0.0), Complex(0.0, 0.0),
-        Complex(0.0, 0.0);
 
     // Initialisation aléatoire de la position de la chaîne
     size_t site_current = random_site(geo, rng);
@@ -562,8 +569,8 @@ std::vector<double> mpi::ecmccb::samples_improved(GaugeField& field, const Geome
                     theta_parcouru_refresh += theta_update;
                     // On lifte
                     // event_counter++;
-                    auto l = lift_improved(field, geo, site_current, mu_current, j, R, lambda_3,
-                                           set, rng);
+                    auto l =
+                        lift_improved_fast(field, geo, site_current, mu_current, j, R, set, rng);
                     lift_counter++;
                     site_current = l.first.first;
                     mu_current = l.first.second;
@@ -593,8 +600,7 @@ std::vector<double> mpi::ecmccb::samples_improved(GaugeField& field, const Geome
                 theta_parcouru_refresh += theta_update;
                 // On lift
                 // event_counter++;
-                auto l =
-                    lift_improved(field, geo, site_current, mu_current, j, R, lambda_3, set, rng);
+                auto l = lift_improved_fast(field, geo, site_current, mu_current, j, R, set, rng);
                 lift_counter++;
                 site_current = l.first.first;
                 mu_current = l.first.second;
