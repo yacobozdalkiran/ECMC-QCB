@@ -36,7 +36,7 @@ The input file can be split in six categories.
 
 ### 4.1 Lattice parameters
 * **`L_core`**: Number of sites per dimension of the squared sub-lattice contained in each MPI core. If the simulation is the continuation of and existing run, this parameter should be the same as the initial run.
-* **`n_core_dims`**: Number of MPI core per dimensions. The total number of MPI cores is $\text{n\_core\_dims}$^4. If the simulation is the continuation of and existing run, this parameter should be the same as the initial run.
+* **`n_core_dims`**: Number of MPI core per dimensions. The total number of MPI cores is `n\_core\_dims`$^4$. If the simulation is the continuation of and existing run, this parameter should be the same as the initial run.
 * **`cold_start`**: `true` if the simulations starts cold, `false` for a hot start. Ignored if the run is the continuation of an existing run.
 
 ### 4.2 Run parameters
