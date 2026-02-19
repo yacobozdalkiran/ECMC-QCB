@@ -129,3 +129,36 @@ else()
     )
 endif()
 
+#===Test reject===
+
+add_executable(reject src/bin/reject.cpp
+        src/gauge/GaugeField.cpp
+        src/su3/utils.cpp
+        src/geometry/GeometryCB.cpp
+        src/geometry/types.h
+        src/mpi/MpiTopology.cpp
+        src/mpi/HalosExchange.cpp
+        src/observables/observables_mpi.cpp
+        src/mpi/Shift.cpp
+        src/ecmc/ecmc_mpi_cb.cpp
+        src/io/params.h
+        src/io/io.cpp
+        src/flow/gradient_flow.cpp
+        src/io/ildg.cpp
+)
+target_link_libraries(reject PRIVATE MPI::MPI_CXX Eigen3::Eigen lime)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
+    target_compile_options(reject PRIVATE
+            -O2
+            #-xHost            # Remplace -march=native pour Intel
+            -fp-model precise
+            -Wall -Wextra
+    )
+else()
+    target_compile_options(reject PRIVATE
+            -O2
+            #-ffast-math
+            #-march=native
+            -Wall -Wextra -Wpedantic
+    )
+endif()

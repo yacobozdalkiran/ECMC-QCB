@@ -14,6 +14,7 @@
 namespace mpi::ecmccb {
 void compute_list_staples(const GaugeField& field, const GeometryCB& geo, size_t site, int mu,
                           std::array<SU3, 6>& list_staple);
+void solve_reject_fast(double A, double B, double& gamma, double& reject, int epsilon);
 void solve_reject(double A, double B, double& gamma, double& reject, int epsilon);
 void compute_reject_angles(const GaugeField& field, size_t site, int mu,
                            const std::array<SU3, 6>& list_staple, const SU3& R, int epsilon,

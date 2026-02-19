@@ -34,6 +34,52 @@ void mpi::ecmccb::compute_list_staples(const GaugeField& field, const GeometryCB
     }
 }
 
+//Optimization of solve_reject
+void mpi::ecmccb::solve_reject_fast(double A, double B, double& gamma, double& reject, int epsilon) {
+    if (epsilon == -1) B = -B;
+
+    double R = std::sqrt(A * A + B * B);
+    double period = 2.0 * R;
+
+    // Calcul du nombre de périodes rejetées (identique à l'original)
+    double discarded_number = std::floor(gamma / period);
+    gamma -= discarded_number * period;
+
+    double phi = std::atan2(-A, B);
+    if (phi < 0.0) phi += 2.0 * M_PI;
+
+    double alpha;
+    
+    // Fusion des cas 1 (phi < pi/2) et 2 (phi > 3pi/2)
+    if (phi < M_PI / 2.0 || phi > 3.0 * M_PI / 2.0) {
+        double p1 = R - A;
+        if (gamma > p1) {
+            gamma -= p1;
+            alpha = gamma / R - 1.0;
+        } else {
+            alpha = (gamma + A) / R;
+        }
+    } else {
+        // Cas 3 (pi/2 <= phi <= 3pi/2)
+        alpha = gamma / R - 1.0;
+    }
+
+    // Sécurité contre les erreurs d'arrondi flottant avant le std::asin
+    alpha = std::max(-1.0, std::min(1.0, alpha));
+
+    // Calcul de l'angle unique
+    double theta = phi + std::asin(alpha);
+
+    // Remplacement ultra-rapide de fmod(..., 2*M_PI)
+    if (theta < 0.0) {
+        theta += 2.0 * M_PI;
+    } else if (theta >= 2.0 * M_PI) {
+        theta -= 2.0 * M_PI;
+    }
+
+    reject = theta + 2.0 * M_PI * discarded_number;
+}
+
 // Solves the reject equation
 void mpi::ecmccb::solve_reject(double A, double B, double& gamma, double& reject, int epsilon) {
     if (epsilon == -1) B = -B;
@@ -148,7 +194,7 @@ void mpi::ecmccb::compute_reject_angles(const GaugeField& field, size_t site, in
         double B = -P(0, 0).imag() + P(1, 1).imag();
         A *= -(beta / 3.0);
         B *= -(beta / 3.0);
-        solve_reject(A, B, gamma, reject_angles[i], epsilon);
+        solve_reject_fast(A, B, gamma, reject_angles[i], epsilon);
     }
 }
 
