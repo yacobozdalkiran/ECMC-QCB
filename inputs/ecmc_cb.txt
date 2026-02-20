@@ -1,19 +1,19 @@
 #Lattice params
-L_core=4
+L_core=5
 n_core_dims=2
 cold_start=false
 
 #Run params
 seed=12345
-N_shift_therm = 30
-N_shift=500
+N_shift_therm = 0
+N_shift=50
 N_switch_eo=2
 
 #ECMC params
-beta=5.8
-param_theta_sample=250
-param_theta_refresh_site=350
-param_theta_refresh_R=15
+beta=6.0
+param_theta_sample=450
+param_theta_refresh_site=150
+param_theta_refresh_R=150
 poisson=false
 epsilon_set=0.15
 
@@ -27,6 +27,6 @@ N_steps_gf = 10
 N_rk_steps = 40
 
 #Save params
-run_name = test
+run_name = comparaisonMPI
 run_dir = data
-save_each_shifts = 1000
+save_each_shifts = 2000

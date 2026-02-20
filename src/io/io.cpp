@@ -46,6 +46,33 @@ void io::save_plaquette(const std::vector<double>& data, const std::string& file
     std::cout << "Plaquette written in " << filepath << "\n";
 }
 
+void io::save_event_nb(const std::vector<size_t>& event_nb, const std::string& filename,
+                        const std::string& dirpath) {
+    // Create a data folder if doesn't exists
+    fs::path base_dir(dirpath);
+    fs::path dir = base_dir / filename;
+
+    try {
+        if (!fs::exists(dir)) {
+            fs::create_directories(dir);
+        }
+    } catch (const fs::filesystem_error& e) {
+        std::cerr << "Couldn't create folder data : " << e.what() << std::endl;
+        return;
+    }
+    fs::path filepath = dir / (filename + "_nbevent.txt");
+
+    std::ofstream file(filepath, std::ios::out | std::ios::app);
+    if (!file.is_open()) {
+        std::cout << "Could not open file " << filepath << "\n";
+        return;
+    }
+    for (const size_t& x : event_nb) {
+        file << x << "\n";
+    }
+    file.close();
+    std::cout << "Number of events written in " << filepath << "\n";
+}
 // Saves the tQE vector into data/filename/filename_topo.txt
 void io::save_topo(const std::vector<double>& tQE, const std::string& filename,
                    const std::string& dirpath, int precision) {
@@ -76,7 +103,7 @@ void io::save_topo(const std::vector<double>& tQE, const std::string& filename,
     std::cout << "Topology written in " << filepath << "\n";
 };
 
-// Saves the Mersenne Twister states into data/filename/filename_seed/filename_seed[rank].txt
+// Saves the Mersenne Twister states into dirpath/filename/filename_seed/filename_seed[rank].txt
 void io::save_seed(std::mt19937_64& rng, const std::string& filename, const std::string& dirpath,
                    mpi::MpiTopology& topo) {
     // Create a data folder if doesn't exists
@@ -108,6 +135,96 @@ void io::save_seed(std::mt19937_64& rng, const std::string& filename, const std:
         std::cout << "Seed saved in " << filepath << "\n";
     }
 };
+
+// Saves the local chain state of each core in
+// dirpath/filename/filename_state/filename_state[rank].txt
+void io::save_state(const LocalChainState& state, const std::string& filename,
+                    const std::string& dirpath, mpi::MpiTopology& topo) {
+    // 1. Construction du chemin du dossier : dirpath/filename/filename_state/
+    fs::path base_dir = fs::path(dirpath) / filename;
+    fs::path state_dir = base_dir / (filename + "_state");
+
+    // 2. Création du dossier (le rang 0 s'en occupe)
+    if (topo.rank == 0) {
+        if (!fs::exists(state_dir)) {
+            fs::create_directories(state_dir);
+        }
+    }
+    // On s'assure que le dossier est prêt pour tout le monde
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    // 3. Fichier spécifique au rang : filename_state[rank].txt
+    std::string file_rank = filename + "_state" + std::to_string(topo.rank) + ".txt";
+    fs::path full_path = state_dir / file_rank;
+
+    std::ofstream ofs(full_path);
+    if (!ofs.is_open()) {
+        std::cerr << "[Rank " << topo.rank
+                  << "] Error: Could not open state file for writing: " << full_path << std::endl;
+        return;
+    }
+
+    // 4. Écriture des données avec précision maximale
+    ofs << std::setprecision(17);
+
+    // Scalaires
+    ofs << state.site << " " << state.mu << " " << state.epsilon << " "
+        << state.theta_parcouru_refresh_site << " " << state.theta_parcouru_refresh_R << " "
+        << state.theta_refresh_site << " " << state.theta_refresh_R << " " << state.set_counter
+        << " " << state.initialized << "\n";
+
+    // Matrice SU3 R (3x3 nombres complexes)
+    // On sauvegarde la partie réelle et imaginaire de chaque composante
+    for (int i = 0; i < 3; ++i) {
+        for (int j = 0; j < 3; ++j) {
+            auto val = state.R(i, j);
+            ofs << val.real() << " " << val.imag() << " ";
+        }
+        ofs << "\n";
+    }
+
+    ofs.close();
+    if (topo.rank == 0) {
+        std::cout << "ECMC Chain saved in : " << full_path << std::endl;
+    }
+}
+
+// Loads the local chain state of each core
+void io::load_state(LocalChainState& state, const std::string& filename, const std::string& dirpath,
+                    mpi::MpiTopology& topo) {
+    // 1. Construction du chemin du fichier
+    fs::path state_path = fs::path(dirpath) / filename / (filename + "_state") /
+                          (filename + "_state" + std::to_string(topo.rank) + ".txt");
+
+    // 2. Tentative d'ouverture
+    std::ifstream ifs(state_path);
+    if (!ifs.is_open()) {
+        // Si le fichier n'existe pas, on considère que c'est un nouveau run
+        state.initialized = false;
+        return;
+    }
+
+    // 3. Lecture des scalaires
+    ifs >> state.site >> state.mu >> state.epsilon >> state.theta_parcouru_refresh_site >>
+        state.theta_parcouru_refresh_R >> state.theta_refresh_site >> state.theta_refresh_R >>
+        state.set_counter >> state.initialized;
+
+    // 4. Lecture de la matrice SU3 R
+    for (int i = 0; i < 3; ++i) {
+        for (int j = 0; j < 3; ++j) {
+            double re, im;
+            ifs >> re >> im;
+            // On reconstruit le complexe et on l'assigne à la matrice
+            state.R(i, j) = std::complex<double>(re, im);
+        }
+    }
+
+    ifs.close();
+
+    if (topo.rank == 0) {
+        std::cout << "Successfully loaded ECMC chain state from: " << state_path << std::endl;
+    }
+}
 
 // Saves the run params into data/filename/filename_params.txt
 void io::save_params(const RunParamsHbCB& rp, const std::string& filename,

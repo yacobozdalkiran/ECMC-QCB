@@ -11,16 +11,35 @@
 #include "../io/params.h"
 #include "../mpi/MpiTopology.h"
 
+// Saves the state of a local Event-Chain
+struct LocalChainState {
+    size_t site;
+    int mu;
+    int epsilon;
+    SU3 R;
+    bool initialized = false;
+
+    // Budgets de Poisson persistants
+    double theta_parcouru_refresh_site = 0.0;
+    double theta_parcouru_refresh_R = 0.0;
+    // Budgets de Poisson persistants
+    double theta_refresh_site = 0.0;
+    double theta_refresh_R = 0.0;
+    // Compteur pour le set de matrices
+    size_t set_counter;
+    // Compteur de lifts
+    size_t event_counter = 0;
+};
+
 namespace mpi::ecmccb {
 void compute_list_staples(const GaugeField& field, const GeometryCB& geo, size_t site, int mu,
                           std::array<SU3, 6>& list_staple);
-//void solve_reject_fast(double A, double B, double& gamma, double& reject, int epsilon);
+// void solve_reject_fast(double A, double B, double& gamma, double& reject, int epsilon);
 #pragma omp declare simd
-inline void solve_reject_fast(double A, double B, double& gamma, double& reject,
-                                          int epsilon) {
+inline void solve_reject_fast(double A, double B, double& gamma, double& reject, int epsilon) {
     // Utilisation de ternaires pour éviter les sauts (branches)
     B = (epsilon == -1) ? -B : B;
-    
+
     // std::hypot est souvent mieux vectorisé par SVML
     double R = std::hypot(A, B);
     double invR = 1.0 / R;
@@ -34,7 +53,7 @@ inline void solve_reject_fast(double A, double B, double& gamma, double& reject,
 
     double alpha;
     double p1 = R - A;
-    
+
     // Le compilateur Intel transforme ce bloc en "masking" SIMD
     if (phi < (M_PI * 0.5) || phi > (M_PI * 1.5)) {
         alpha = (gamma > p1) ? (gamma - p1) * invR - 1.0 : (gamma + A) * invR;
@@ -59,10 +78,9 @@ void compute_reject_angles(const GaugeField& field, size_t site, int mu,
                            const double& beta, std::array<double, 6>& reject_angles,
                            std::mt19937_64& rng);
 void compute_reject_angles_fast(const GaugeField& field, size_t site, int mu,
-                                        const std::array<SU3, 6>& list_staple, const SU3& R,
-                                        int epsilon, const double& beta,
-                                        std::array<double, 6>& reject_angles,
-                                        std::mt19937_64& rng);
+                                const std::array<SU3, 6>& list_staple, const SU3& R, int epsilon,
+                                const double& beta, std::array<double, 6>& reject_angles,
+                                std::mt19937_64& rng);
 size_t selectVariable(const std::array<double, 4>& probas, std::mt19937_64& rng);
 double compute_ds(const SU3& Pi, const SU3& R_mat);
 std::pair<std::pair<size_t, int>, int> lift_improved_fast(const GaugeField& field,
@@ -74,6 +92,9 @@ void update(GaugeField& field, size_t site, int mu, double theta, int epsilon, c
 size_t random_site(const GeometryCB& geo, std::mt19937_64& rng);
 void sample(GaugeField& field, const GeometryCB& geo, const ECMCParams& params,
             std::mt19937_64& rng, mpi::MpiTopology& topo, parity active_parity);
+void sample_persistant(LocalChainState& state, GaugeField& field, const GeometryCB& geo,
+                       const ECMCParams& params, std::mt19937_64& rng, mpi::MpiTopology& topo,
+                       parity active_parity);
 }  // namespace mpi::ecmccb
 
 #endif  // INC_4D_MPI_ECMC_MPI_H

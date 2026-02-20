@@ -32,8 +32,12 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
         field.hot_start(geo, rng);
     }
 
+    // Chain state
+    LocalChainState state{};
+
     if (existing) {
         read_ildg_clime(rp.run_name, rp.run_dir, field, geo, topo);
+        io::load_state(state, rp.run_name, rp.run_dir, topo);
         fs::path state_path = fs::path(rp.run_dir) / rp.run_name / (rp.run_name + "_seed") /
                               (rp.run_name + "_seed" + std::to_string(topo.rank) + ".txt");
         std::ifstream ifs(state_path);
@@ -72,6 +76,8 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
                         rp.N_steps_gf);
         tQE_current.reserve(3 * rp.N_rk_steps * rp.N_steps_gf);
     }
+    std::vector<size_t> event_nb;
+    event_nb.reserve(rp.save_each_shifts / rp.N_shift_plaquette + 2);
 
     // Save params
     if (topo.rank == 0) {
@@ -102,7 +108,7 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
                 std::cout << "(Therm) Shift : " << i << ", Switch : " << j << ", Parity : Even\n";
             }
             parity active_parity = even;
-            mpi::ecmccb::sample(field, geo, ep, rng, topo, active_parity);
+            mpi::ecmccb::sample_persistant(state, field, geo, ep, rng, topo, active_parity);
             mpi::exchange::exchange_halos_cascade(field, geo, topo);
 
             // Odd parity :
@@ -110,7 +116,7 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
                 std::cout << "(Therm) Shift : " << i << ", Switch : " << j << ", Parity : Odd\n";
             }
             active_parity = odd;
-            mpi::ecmccb::sample(field, geo, ep, rng, topo, active_parity);
+            mpi::ecmccb::sample_persistant(state, field, geo, ep, rng, topo, active_parity);
             mpi::exchange::exchange_halos_cascade(field, geo, topo);
         }
 
@@ -133,6 +139,9 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
         std::cout << "===========================================\n";
     }
 
+    //Event counter reinitialized
+    state.event_counter=0;
+
     for (int i = 0; i < N_shift; i++) {
         if (topo.rank == 0) {
             std::cout << "\n\n=============" << "Shift " << i << "=============\n";
@@ -147,7 +156,7 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
                 std::cout << "Shift : " << i << ", Switch : " << j << ", Parity : Even\n";
             }
             parity active_parity = even;
-            mpi::ecmccb::sample(field, geo, ep, rng, topo, active_parity);
+            mpi::ecmccb::sample_persistant(state, field, geo, ep, rng, topo, active_parity);
             mpi::exchange::exchange_halos_cascade(field, geo, topo);
 
             // Odd parity :
@@ -155,7 +164,7 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
                 std::cout << "Shift : " << i << ", Switch : " << j << ", Parity : Odd\n";
             }
             active_parity = odd;
-            mpi::ecmccb::sample(field, geo, ep, rng, topo, active_parity);
+            mpi::ecmccb::sample_persistant(state, field, geo, ep, rng, topo, active_parity);
             mpi::exchange::exchange_halos_cascade(field, geo, topo);
         }
 
@@ -167,6 +176,9 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
                 std::cout << "Sample " << i / rp.N_shift_plaquette << ", <P> = " << p << "\n";
             }
             plaquette.emplace_back(p);
+            //Event counting
+            event_nb.emplace_back(state.event_counter);
+            state.event_counter=0;
         }
         // Measure topo
         if (rp.topo and (i % rp.N_shift_topo == 0)) {
@@ -184,7 +196,7 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
                            std::make_move_iterator(tQE_current.end()));
         }
 
-        // Save conf/seed/obs
+        // Save conf/seed/chain state/obs
         if (i % rp.save_each_shifts == 0) {
             if (topo.rank == 0) {
                 std::cout << "\n\n==========================================\n";
@@ -195,17 +207,22 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
                     io::save_topo(tQE_tot, rp.run_name, rp.run_dir, precision);
                 }
                 io::add_shift(i, rp.run_name, rp.run_dir);
+                io::save_event_nb(event_nb, rp.run_name, rp.run_dir);
             }
-            // Save seeds
-            io::save_seed(rng, rp.run_name, rp.run_dir, topo);
             // Save conf
             save_ildg_clime(rp.run_name, rp.run_dir, field, geo, topo);
+            // Save seeds
+            io::save_seed(rng, rp.run_name, rp.run_dir, topo);
+            // Save chain state
+            io::save_state(state, rp.run_name, rp.run_dir, topo);
             if (topo.rank == 0) {
                 std::cout << "==========================================\n";
             }
             // Clear the measures
             plaquette.clear();
             plaquette.reserve(rp.save_each_shifts / rp.N_shift_plaquette + 2);
+            event_nb.clear();
+            event_nb.reserve(rp.save_each_shifts / rp.N_shift_plaquette + 2);
             tQE_tot.clear();
             tQE_tot.reserve(3 * (rp.save_each_shifts / rp.N_shift_topo + 2) * rp.N_rk_steps *
                             rp.N_steps_gf);
@@ -214,6 +231,7 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
 
     //===========================Output======================================
 
+    // Save conf/seed/chain state/obs
     if (topo.rank == 0) {
         std::cout << "\n\n==========================================\n";
         // Write the output
@@ -224,11 +242,14 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
         }
         io::add_shift(rp.N_shift, rp.run_name, rp.run_dir);
         io::add_finished(rp.run_name, rp.run_dir);
+        io::save_event_nb(event_nb, rp.run_name, rp.run_dir);
     }
-    // Save seeds
-    io::save_seed(rng, rp.run_name, rp.run_dir, topo);
     // Save conf
     save_ildg_clime(rp.run_name, rp.run_dir, field, geo, topo);
+    // Save seeds
+    io::save_seed(rng, rp.run_name, rp.run_dir, topo);
+    // Save chain state
+    io::save_state(state, rp.run_name, rp.run_dir, topo);
     if (topo.rank == 0) {
         std::cout << "==========================================\n";
     }
