@@ -34,6 +34,7 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
 
     // Chain state
     LocalChainState state{};
+    Distributions d(rp.ecmc_params);
 
     if (existing) {
         read_ildg_clime(rp.run_name, rp.run_dir, field, geo, topo);
@@ -108,7 +109,7 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
                 std::cout << "(Therm) Shift : " << i << ", Switch : " << j << ", Parity : Even\n";
             }
             parity active_parity = even;
-            mpi::ecmccb::sample_persistant(state, field, geo, ep, rng, topo, active_parity);
+            mpi::ecmccb::sample_persistant(state, d, field, geo, ep, rng, topo, active_parity);
             mpi::exchange::exchange_halos_cascade(field, geo, topo);
 
             // Odd parity :
@@ -116,7 +117,7 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
                 std::cout << "(Therm) Shift : " << i << ", Switch : " << j << ", Parity : Odd\n";
             }
             active_parity = odd;
-            mpi::ecmccb::sample_persistant(state, field, geo, ep, rng, topo, active_parity);
+            mpi::ecmccb::sample_persistant(state, d, field, geo, ep, rng, topo, active_parity);
             mpi::exchange::exchange_halos_cascade(field, geo, topo);
         }
 
@@ -156,7 +157,7 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
                 std::cout << "Shift : " << i << ", Switch : " << j << ", Parity : Even\n";
             }
             parity active_parity = even;
-            mpi::ecmccb::sample_persistant(state, field, geo, ep, rng, topo, active_parity);
+            mpi::ecmccb::sample_persistant(state, d, field, geo, ep, rng, topo, active_parity);
             mpi::exchange::exchange_halos_cascade(field, geo, topo);
 
             // Odd parity :
@@ -164,7 +165,7 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
                 std::cout << "Shift : " << i << ", Switch : " << j << ", Parity : Odd\n";
             }
             active_parity = odd;
-            mpi::ecmccb::sample_persistant(state, field, geo, ep, rng, topo, active_parity);
+            mpi::ecmccb::sample_persistant(state, d, field, geo, ep, rng, topo, active_parity);
             mpi::exchange::exchange_halos_cascade(field, geo, topo);
         }
 
@@ -197,7 +198,7 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
         }
 
         // Save conf/seed/chain state/obs
-        if (i % rp.save_each_shifts == 0) {
+        if (i>0 and i % rp.save_each_shifts == 0) {
             if (topo.rank == 0) {
                 std::cout << "\n\n==========================================\n";
                 // Write the output

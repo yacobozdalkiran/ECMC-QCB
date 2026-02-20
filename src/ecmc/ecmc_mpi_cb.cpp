@@ -493,7 +493,7 @@ void mpi::ecmccb::sample(GaugeField& field, const GeometryCB& geo, const ECMCPar
     }
 }
 
-void mpi::ecmccb::sample_persistant(LocalChainState& state, GaugeField& field,
+void mpi::ecmccb::sample_persistant(LocalChainState& state, Distributions& d, GaugeField& field,
                                     const GeometryCB& geo, const ECMCParams& params,
                                     std::mt19937_64& rng, mpi::MpiTopology& topo,
                                     parity active_parity) {
@@ -503,22 +503,16 @@ void mpi::ecmccb::sample_persistant(LocalChainState& state, GaugeField& field,
     // Constantes et Distributions
     const double beta = params.beta;
     const bool poisson = params.poisson;
-    static std::uniform_int_distribution<int> random_dir(0, 3);
-    static std::uniform_int_distribution<int> random_eps(0, 1);
-    static std::exponential_distribution<double> dist_sample(1.0 / params.param_theta_sample);
-    static std::exponential_distribution<double> dist_refresh_site(1.0 /
-                                                                   params.param_theta_refresh_site);
-    static std::exponential_distribution<double> dist_refresh_R(1.0 / params.param_theta_refresh_R);
 
     // Initialisation de l'état de la chaîne si nécessaire
     if (!state.initialized) {
         state.site = random_site(geo, rng);
-        state.mu = random_dir(rng);
-        state.epsilon = 2 * random_eps(rng) - 1;
+        state.mu = d.random_dir(rng);
+        state.epsilon = 2 * d.random_eps(rng) - 1;
         state.R = random_su3(rng);
         state.theta_refresh_site =
-            poisson ? dist_refresh_site(rng) : params.param_theta_refresh_site;
-        state.theta_refresh_R = poisson ? dist_refresh_R(rng) : params.param_theta_refresh_R;
+            poisson ? d.dist_refresh_site(rng) : params.param_theta_refresh_site;
+        state.theta_refresh_R = poisson ? d.dist_refresh_R(rng) : params.param_theta_refresh_R;
         state.theta_parcouru_refresh_site = 0.0;
         state.theta_parcouru_refresh_R = 0.0;
         state.set_counter = 0;
@@ -535,7 +529,7 @@ void mpi::ecmccb::sample_persistant(LocalChainState& state, GaugeField& field,
     size_t event_counter = state.event_counter;
 
     // Budget d'angle
-    double theta_sample = poisson ? dist_sample(rng) : params.param_theta_sample;
+    double theta_sample = poisson ? d.dist_sample(rng) : params.param_theta_sample;
     double theta_refresh_site = state.theta_refresh_site;
     double theta_refresh_R = state.theta_refresh_R;
     double theta_parcouru_sample = 0.0;
@@ -603,11 +597,11 @@ void mpi::ecmccb::sample_persistant(LocalChainState& state, GaugeField& field,
             theta_parcouru_sample += dist_to_refresh_site;
             theta_parcouru_refresh_R += dist_to_refresh_site;
             theta_parcouru_refresh_site = 0.0;
-            if (poisson) theta_refresh_site = dist_refresh_site(rng);
+            if (poisson) theta_refresh_site = d.dist_refresh_site(rng);
 
             site_current = random_site(geo, rng);
-            mu_current = random_dir(rng);
-            epsilon_current = 2 * random_eps(rng) - 1;
+            mu_current = d.random_dir(rng);
+            epsilon_current = 2 * d.random_eps(rng) - 1;
         } else if (theta_step == dist_to_refresh_R) {
             // --- EVENT: REFRESH R ---
             update(field, site_current, mu_current, dist_to_refresh_R, epsilon_current, R);
@@ -616,7 +610,7 @@ void mpi::ecmccb::sample_persistant(LocalChainState& state, GaugeField& field,
             theta_parcouru_sample += dist_to_refresh_R;
             theta_parcouru_refresh_site += dist_to_refresh_R;
             theta_parcouru_refresh_R = 0.0;
-            if (poisson) theta_refresh_R = dist_refresh_R(rng);
+            if (poisson) theta_refresh_R = d.dist_refresh_R(rng);
 
             R = random_su3(rng);
         } else {

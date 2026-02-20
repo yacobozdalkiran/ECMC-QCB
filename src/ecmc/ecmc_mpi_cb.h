@@ -31,6 +31,23 @@ struct LocalChainState {
     size_t event_counter = 0;
 };
 
+// Exp distributions if poisson
+struct Distributions {
+    std::uniform_int_distribution<int> random_dir;
+    std::uniform_int_distribution<int> random_eps;
+    std::exponential_distribution<double> dist_sample;
+    std::exponential_distribution<double> dist_refresh_site;
+    std::exponential_distribution<double> dist_refresh_R;
+    // Constructeur pour initialiser les taux
+    Distributions(const ECMCParams& p)
+        : random_dir(0, 3),
+          random_eps(0, 1),
+          dist_sample(1.0 / p.param_theta_sample),
+          dist_refresh_site(1.0 / p.param_theta_refresh_site),  // On normalise le taux à 1.0 et on
+          dist_refresh_R(1.0 / p.param_theta_refresh_R)  // On normalise le taux à 1.0 et on divise
+    {};
+};
+
 namespace mpi::ecmccb {
 void compute_list_staples(const GaugeField& field, const GeometryCB& geo, size_t site, int mu,
                           std::array<SU3, 6>& list_staple);
@@ -92,9 +109,9 @@ void update(GaugeField& field, size_t site, int mu, double theta, int epsilon, c
 size_t random_site(const GeometryCB& geo, std::mt19937_64& rng);
 void sample(GaugeField& field, const GeometryCB& geo, const ECMCParams& params,
             std::mt19937_64& rng, mpi::MpiTopology& topo, parity active_parity);
-void sample_persistant(LocalChainState& state, GaugeField& field, const GeometryCB& geo,
-                       const ECMCParams& params, std::mt19937_64& rng, mpi::MpiTopology& topo,
-                       parity active_parity);
+void sample_persistant(LocalChainState& state, Distributions& d, GaugeField& field,
+                       const GeometryCB& geo, const ECMCParams& params, std::mt19937_64& rng,
+                       mpi::MpiTopology& topo, parity active_parity);
 }  // namespace mpi::ecmccb
 
 #endif  // INC_4D_MPI_ECMC_MPI_H

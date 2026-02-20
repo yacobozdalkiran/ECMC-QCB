@@ -179,7 +179,7 @@ void generate_hb_cb(const RunParamsHbCB& rp, bool existing) {
         }
 
         // Save conf/seed/obs
-        if (i % rp.save_each_shifts == 0) {
+        if (i>0 and i % rp.save_each_shifts == 0) {
             if (topo.rank == 0) {
                 std::cout << "\n\n==========================================\n";
                 // Write the output
