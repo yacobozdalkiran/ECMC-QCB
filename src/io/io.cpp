@@ -9,6 +9,7 @@
 #include <map>
 #include <sstream>
 #include <string>
+#include <omp.h>
 extern "C" {
 #include <lime.h>
 }
@@ -569,12 +570,26 @@ bool io::read_params(RunParamsHbCB& params, int rank, const std::string& input) 
         MPI_Bcast(&params.run_dir[0], dir_len, MPI_CHAR, 0, MPI_COMM_WORLD);
     }
 
+    // 4. Vérification de l'existence des fichiers pour la reprise (Resume)
     fs::path base_path = fs::path(params.run_dir) / params.run_name;
-    fs::path config_file = base_path / params.run_name;
-    fs::path seed_file = base_path / (params.run_name + "_seed") /
-                         (params.run_name + "_seed" + std::to_string(rank) + ".txt");
+    fs::path config_file = base_path / params.run_name;  // Le fichier ILDG
+    fs::path seed_dir = base_path / (params.run_name + "_seed");
 
-    bool local_existing = fs::exists(config_file) && fs::exists(seed_file);
+    // 1. On vérifie d'abord si le fichier de configuration global existe
+    bool local_existing = fs::exists(config_file);
+
+    // 2. On vérifie que TOUS les fichiers de seeds pour ce rang existent
+    int n_threads = omp_get_max_threads();
+    for (int t = 0; t < n_threads; ++t) {
+        std::string seed_name =
+            params.run_name + "_seed_r" + std::to_string(rank) + "_t" + std::to_string(t) + ".txt";
+        fs::path seed_file = seed_dir / seed_name;
+
+        if (!fs::exists(seed_file)) {
+            local_existing = false;
+            break;  // Inutile de vérifier les autres si un seul manque
+        }
+    }
 
     bool global_existing;
     MPI_Allreduce(&local_existing, &global_existing, 1, MPI_C_BOOL, MPI_LAND, MPI_COMM_WORLD);
@@ -757,13 +772,25 @@ bool io::read_params(RunParamsECB& params, int rank, const std::string& input) {
         MPI_Bcast(&params.run_dir[0], dir_len, MPI_CHAR, 0, MPI_COMM_WORLD);
     }
     // 4. Vérification de l'existence des fichiers pour la reprise (Resume)
-    // On utilise std::filesystem (fs) comme dans ton exemple
     fs::path base_path = fs::path(params.run_dir) / params.run_name;
-    fs::path config_file = base_path / params.run_name;
-    fs::path seed_file = base_path / (params.run_name + "_seed") /
-                         (params.run_name + "_seed" + std::to_string(rank) + ".txt");
+    fs::path config_file = base_path / params.run_name;  // Le fichier ILDG
+    fs::path seed_dir = base_path / (params.run_name + "_seed");
 
-    bool local_existing = fs::exists(config_file) && fs::exists(seed_file);
+    // 1. On vérifie d'abord si le fichier de configuration global existe
+    bool local_existing = fs::exists(config_file);
+
+    // 2. On vérifie que TOUS les fichiers de seeds pour ce rang existent
+    int n_threads = omp_get_max_threads();
+    for (int t = 0; t < n_threads; ++t) {
+        std::string seed_name =
+            params.run_name + "_seed_r" + std::to_string(rank) + "_t" + std::to_string(t) + ".txt";
+        fs::path seed_file = seed_dir / seed_name;
+
+        if (!fs::exists(seed_file)) {
+            local_existing = false;
+            break;  // Inutile de vérifier les autres si un seul manque
+        }
+    }
 
     bool global_existing;
     MPI_Allreduce(&local_existing, &global_existing, 1, MPI_C_BOOL, MPI_LAND, MPI_COMM_WORLD);
