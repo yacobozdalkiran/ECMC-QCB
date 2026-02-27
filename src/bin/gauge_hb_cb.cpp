@@ -95,42 +95,46 @@ void generate_hb_cb(const RunParamsHbCB& rp, bool existing) {
     //==============================Heatbath Checkboard===========================
 
     // Thermalisation
-
-    if (topo.rank == 0) {
-        std::cout << "\n\n===========================================\n";
-        std::cout << "Thermalisation : " << rp.N_therm << " shifts\n";
-        std::cout << "===========================================\n";
-    }
-    for (int i = 0; i < rp.N_therm; i++) {
+    // Skipped if existing conf (for array runs in slurm)
+    if (!existing) {
         if (topo.rank == 0) {
-            std::cout << "\n\n==========" << "(Therm) Shift " << i << "==========\n";
+            std::cout << "\n\n===========================================\n";
+            std::cout << "Thermalisation : " << rp.N_therm << " shifts\n";
+            std::cout << "===========================================\n";
         }
-        // Random shift
-        mpi::shift::random_shift(field, geo, halo_shift, topo, rng[0]);
-        for (int j = 0; j < N_switch_eo; j++) {
-            // Even parity :
+        for (int i = 0; i < rp.N_therm; i++) {
             if (topo.rank == 0) {
-                std::cout << "(Therm) Shift : " << i << ", Switch : " << j << ", Parity : Even\n";
+                std::cout << "\n\n==========" << "(Therm) Shift " << i << "==========\n";
             }
-            parity active_parity = even;
-            mpi::heatbathcb::samples(field, geo, topo, hp, rng, active_parity);
-            mpi::exchange::exchange_halos_cascade(field, geo, topo);
-            // Odd parity :
-            if (topo.rank == 0) {
-                std::cout << "(Therm) Shift : " << i << ", Switch : " << j << ", Parity : Odd\n";
+            // Random shift
+            mpi::shift::random_shift(field, geo, halo_shift, topo, rng[0]);
+            for (int j = 0; j < N_switch_eo; j++) {
+                // Even parity :
+                if (topo.rank == 0) {
+                    std::cout << "(Therm) Shift : " << i << ", Switch : " << j
+                              << ", Parity : Even\n";
+                }
+                parity active_parity = even;
+                mpi::heatbathcb::samples(field, geo, topo, hp, rng, active_parity);
+                mpi::exchange::exchange_halos_cascade(field, geo, topo);
+                // Odd parity :
+                if (topo.rank == 0) {
+                    std::cout << "(Therm) Shift : " << i << ", Switch : " << j
+                              << ", Parity : Odd\n";
+                }
+                active_parity = odd;
+                mpi::heatbathcb::samples(field, geo, topo, hp, rng, active_parity);
+                mpi::exchange::exchange_halos_cascade(field, geo, topo);
             }
-            active_parity = odd;
-            mpi::heatbathcb::samples(field, geo, topo, hp, rng, active_parity);
-            mpi::exchange::exchange_halos_cascade(field, geo, topo);
-        }
 
-        // Plaquette measure (not saved for thermalization)
-        if (i % rp.N_shift_plaquette == 0) {
-            double p = mpi::observables::mean_plaquette_global(field, geo, topo);
-            if (topo.rank == 0) {
-                std::cout << "====== Plaquette ======\n";
-                std::cout << "(Therm) Sample " << i / rp.N_shift_plaquette << ", <P> = " << p
-                          << "\n";
+            // Plaquette measure (not saved for thermalization)
+            if (i % rp.N_shift_plaquette == 0) {
+                double p = mpi::observables::mean_plaquette_global(field, geo, topo);
+                if (topo.rank == 0) {
+                    std::cout << "====== Plaquette ======\n";
+                    std::cout << "(Therm) Sample " << i / rp.N_shift_plaquette << ", <P> = " << p
+                              << "\n";
+                }
             }
         }
     }
@@ -168,7 +172,7 @@ void generate_hb_cb(const RunParamsHbCB& rp, bool existing) {
         }
 
         // Plaquette measure
-        if (i % rp.N_shift_plaquette == 0 and (i>0 or !existing)) {
+        if (i % rp.N_shift_plaquette == 0 and (i > 0 or !existing)) {
             double p = mpi::observables::mean_plaquette_global(field, geo, topo);
             if (topo.rank == 0) {
                 std::cout << "====== Plaquette ======\n";
@@ -177,7 +181,7 @@ void generate_hb_cb(const RunParamsHbCB& rp, bool existing) {
             plaquette.emplace_back(p);
         }
         // Measure topo
-        if (rp.topo and (i % rp.N_shift_topo == 0) and (i>0 or !existing)) {
+        if (rp.topo and (i % rp.N_shift_topo == 0) and (i > 0 or !existing)) {
             if (topo.rank == 0) {
                 std::cout << "====== Topology ======\n";
             }

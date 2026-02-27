@@ -90,44 +90,49 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
 
     //==============================ECMC Checkboard===========================
     // Thermalisation
+    // Skipped if existing (for successive jobs in slurm)
 
-    if (topo.rank == 0) {
-        std::cout << "\n\n===========================================\n";
-        std::cout << "Thermalisation : " << rp.N_therm << " shifts\n";
-        std::cout << "===========================================\n";
-    }
-
-    for (int i = 0; i < rp.N_therm; i++) {
+    if (!existing) {
         if (topo.rank == 0) {
-            std::cout << "\n\n==========" << "(Therm) Shift " << i << "==========\n";
-        }
-        // Random shift
-        mpi::shift::random_shift(field, geo, halo_shift, topo, rng);
-        for (int j = 0; j < N_switch_eo; j++) {
-            // Even parity :
-            if (topo.rank == 0) {
-                std::cout << "(Therm) Shift : " << i << ", Switch : " << j << ", Parity : Even\n";
-            }
-            parity active_parity = even;
-            mpi::ecmccb::sample_persistant(state, d, field, geo, ep, rng, topo, active_parity);
-            mpi::exchange::exchange_halos_cascade(field, geo, topo);
-
-            // Odd parity :
-            if (topo.rank == 0) {
-                std::cout << "(Therm) Shift : " << i << ", Switch : " << j << ", Parity : Odd\n";
-            }
-            active_parity = odd;
-            mpi::ecmccb::sample_persistant(state, d, field, geo, ep, rng, topo, active_parity);
-            mpi::exchange::exchange_halos_cascade(field, geo, topo);
+            std::cout << "\n\n===========================================\n";
+            std::cout << "Thermalisation : " << rp.N_therm << " shifts\n";
+            std::cout << "===========================================\n";
         }
 
-        // Plaquette measure (not saved for thermalization)
-        if (i % rp.N_shift_plaquette == 0) {
-            double p = mpi::observables::mean_plaquette_global(field, geo, topo);
+        for (int i = 0; i < rp.N_therm; i++) {
             if (topo.rank == 0) {
-                std::cout << "====== Plaquette ======\n";
-                std::cout << "(Therm) Sample " << i / rp.N_shift_plaquette << ", <P> = " << p
-                          << "\n";
+                std::cout << "\n\n==========" << "(Therm) Shift " << i << "==========\n";
+            }
+            // Random shift
+            mpi::shift::random_shift(field, geo, halo_shift, topo, rng);
+            for (int j = 0; j < N_switch_eo; j++) {
+                // Even parity :
+                if (topo.rank == 0) {
+                    std::cout << "(Therm) Shift : " << i << ", Switch : " << j
+                              << ", Parity : Even\n";
+                }
+                parity active_parity = even;
+                mpi::ecmccb::sample_persistant(state, d, field, geo, ep, rng, topo, active_parity);
+                mpi::exchange::exchange_halos_cascade(field, geo, topo);
+
+                // Odd parity :
+                if (topo.rank == 0) {
+                    std::cout << "(Therm) Shift : " << i << ", Switch : " << j
+                              << ", Parity : Odd\n";
+                }
+                active_parity = odd;
+                mpi::ecmccb::sample_persistant(state, d, field, geo, ep, rng, topo, active_parity);
+                mpi::exchange::exchange_halos_cascade(field, geo, topo);
+            }
+
+            // Plaquette measure (not saved for thermalization)
+            if (i % rp.N_shift_plaquette == 0) {
+                double p = mpi::observables::mean_plaquette_global(field, geo, topo);
+                if (topo.rank == 0) {
+                    std::cout << "====== Plaquette ======\n";
+                    std::cout << "(Therm) Sample " << i / rp.N_shift_plaquette << ", <P> = " << p
+                              << "\n";
+                }
             }
         }
     }
@@ -140,8 +145,8 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
         std::cout << "===========================================\n";
     }
 
-    //Event counter reinitialized
-    state.event_counter=0;
+    // Event counter reinitialized
+    state.event_counter = 0;
 
     for (int i = 0; i < N_shift; i++) {
         if (topo.rank == 0) {
@@ -170,19 +175,19 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
         }
 
         // Plaquette measure
-        if ((i % rp.N_shift_plaquette == 0) and (i>0 or !existing)) {
+        if ((i % rp.N_shift_plaquette == 0) and (i > 0 or !existing)) {
             double p = mpi::observables::mean_plaquette_global(field, geo, topo);
             if (topo.rank == 0) {
                 std::cout << "====== Plaquette ======\n";
                 std::cout << "Sample " << i / rp.N_shift_plaquette << ", <P> = " << p << "\n";
             }
             plaquette.emplace_back(p);
-            //Event counting
+            // Event counting
             event_nb.emplace_back(state.event_counter);
-            state.event_counter=0;
+            state.event_counter = 0;
         }
         // Measure topo
-        if (rp.topo and (i % rp.N_shift_topo == 0) and (i>0 or !existing)) {
+        if (rp.topo and (i % rp.N_shift_topo == 0) and (i > 0 or !existing)) {
             if (topo.rank == 0) {
                 std::cout << "====== Topology ======\n";
             }
@@ -198,7 +203,7 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
         }
 
         // Save conf/seed/chain state/obs
-        if (i>0 and i % rp.save_each_shifts == 0) {
+        if (i > 0 and i % rp.save_each_shifts == 0) {
             if (topo.rank == 0) {
                 std::cout << "\n\n==========================================\n";
                 // Write the output
