@@ -47,7 +47,7 @@ void io::save_plaquette(const std::vector<double>& data, const std::string& file
 }
 
 void io::save_event_nb(const std::vector<size_t>& event_nb, const std::string& filename,
-                        const std::string& dirpath) {
+                       const std::string& dirpath) {
     // Create a data folder if doesn't exists
     fs::path base_dir(dirpath);
     fs::path dir = base_dir / filename;
@@ -112,16 +112,19 @@ void io::save_seed(std::mt19937_64& rng, const std::string& filename, const std:
         base_dir / filename /
         (filename + "_seed");  // Utilise l'opérateur / pour gérer les slashs proprement
 
-    try {
-        // create_directories crée dirpath PUIS "data/run_name" si nécessaire
-        if (!fs::exists(run_dir)) {
-            fs::create_directories(run_dir);
+    if (topo.rank == 0) {
+        try {
+            // create_directories crée dirpath PUIS "data/run_name" si nécessaire
+            if (!fs::exists(run_dir)) {
+                fs::create_directories(run_dir);
+            }
+        } catch (const fs::filesystem_error& e) {
+            std::cerr << "Error creating directory structure " << run_dir << " : " << e.what()
+                      << std::endl;
+            return;
         }
-    } catch (const fs::filesystem_error& e) {
-        std::cerr << "Error creating directory structure " << run_dir << " : " << e.what()
-                  << std::endl;
-        return;
     }
+    MPI_Barrier(topo.cart_comm);
     fs::path filepath = run_dir / (filename + "_seed" + std::to_string(topo.rank) + ".txt");
 
     std::ofstream file(filepath);
@@ -133,6 +136,52 @@ void io::save_seed(std::mt19937_64& rng, const std::string& filename, const std:
     file.close();
     if (topo.rank == 0) {
         std::cout << "Seed saved in " << filepath << "\n";
+    }
+};
+
+// Saves the Mersenne Twister states into
+// dirpath/filename/filename_seed/filename_seed_r[rank]_t[thread].txt
+void io::save_seed(std::vector<std::mt19937_64>& rng, const std::string& filename,
+                   const std::string& dirpath, mpi::MpiTopology& topo) {
+    // Create a data folder if doesn't exists
+    fs::path base_dir(dirpath);
+    fs::path run_dir =
+        base_dir / filename /
+        (filename + "_seed");  // Utilise l'opérateur / pour gérer les slashs proprement
+    if (topo.rank == 0) {
+        try {
+            // create_directories crée dirpath PUIS "data/run_name" si nécessaire_r
+            if (!fs::exists(run_dir)) {
+                fs::create_directories(run_dir);
+            }
+        } catch (const fs::filesystem_error& e) {
+            std::cerr << "Error creating directory structure " << run_dir << " : " << e.what()
+                      << std::endl;
+            return;
+        }
+    }
+    MPI_Barrier(topo.cart_comm);
+    for (size_t t = 0; t < rng.size(); ++t) {
+        // Nom de fichier incluant le rang (r) et le thread (t)
+        // Exemple : ma_run_seed_r0_t4.txt
+        std::string seed_name =
+            filename + "_seed_r" + std::to_string(topo.rank) + "_t" + std::to_string(t) + ".txt";
+        fs::path filepath = run_dir / seed_name;
+
+        std::ofstream file(filepath);
+        if (!file.is_open()) {
+            std::cerr << "Rank " << topo.rank << ": Could not open file " << filepath << "\n";
+            continue;  // On essaie quand même les autres threads
+        }
+
+        // On sérialise l'état interne du générateur
+        file << rng[t];
+        file.close();
+    }
+
+    // Un seul message pour confirmer que tout le groupe de seeds est sauvé
+    if (topo.rank == 0) {
+        std::cout << "All threads seeds (" << rng.size() << ") saved in " << run_dir << "\n";
     }
 };
 

@@ -6,7 +6,7 @@
 
 #include "heatbath.h"
 
-//Performs a Heatbath hit on a link using the Cabbibo-Marinari algorithm
+// Performs a Heatbath hit on a link using the Cabbibo-Marinari algorithm
 void mpi::heatbathcb::hit(GaugeField& field, const GeometryCB& geo, size_t site, int mu,
                           double beta, SU3& A, std::mt19937_64& rng) {
     field.compute_staple(geo, site, mu, A);
@@ -32,19 +32,21 @@ void mpi::heatbathcb::hit(GaugeField& field, const GeometryCB& geo, size_t site,
     field.view_link(site, mu) = R * field.view_link(site, mu);
 }
 
-//Performs a Heatbath sweep on the non-frozen links
+// Performs a Heatbath sweep on the non-frozen links
 void mpi::heatbathcb::sweep(GaugeField& field, const GeometryCB& geo, double beta, int N_hits,
-                            std::mt19937_64& rng) {
-    SU3 A;
+                            std::vector<std::mt19937_64>& rng, site_parity update_parity) {
+#pragma omp parallel for collapse(4)
     for (int t = 1; t <= geo.L_int; t++) {
         for (int z = 1; z <= geo.L_int; z++) {
             for (int y = 1; y <= geo.L_int; y++) {
                 for (int x = 1; x <= geo.L_int; x++) {
                     size_t site = geo.index(x, y, z, t);
                     for (int mu = 0; mu < 4; mu++) {
-                        if (!geo.is_frozen(site, mu)) {
+                        if (!geo.is_frozen(site, mu) and (geo.get_parity(site) == update_parity)) {
+                            int tid = omp_get_thread_num();
+                            SU3 A;
                             for (int h = 0; h < N_hits; h++) {
-                                hit(field, geo, site, mu, beta, A, rng);
+                                hit(field, geo, site, mu, beta, A, rng[tid]);
                             }
                         }
                     }
@@ -54,16 +56,18 @@ void mpi::heatbathcb::sweep(GaugeField& field, const GeometryCB& geo, double bet
     }
 }
 
-//Generates Heatbath samples according to input parameters
+// Generates Heatbath samples according to input parameters
 std::vector<double> mpi::heatbathcb::samples(GaugeField& field, const GeometryCB& geo,
                                              MpiTopology& topo, const HbParams& params,
-                                             std::mt19937_64& rng, parity active_parity) {
+                                             std::vector<std::mt19937_64>& rng, parity active_parity
+                                             ) {
     std::vector<double> meas(params.N_samples);
     for (int m = 0; m < params.N_samples; m++) {
         // Update
         if (topo.p == active_parity) {
             for (int s = 0; s < params.N_sweeps; s++) {
-                sweep(field, geo, params.beta, params.N_hits, rng);
+                sweep(field, geo, params.beta, params.N_hits, rng, site_parity::EV);
+                sweep(field, geo, params.beta, params.N_hits, rng, site_parity::OD);
             }
         }
     }

@@ -16,6 +16,7 @@ private:
     std::vector<size_t> neighbors;
     std::vector<bool> frozen;
     std::vector<std::pair<size_t, int>> links_staples;
+    std::vector<site_parity> parity;
 
 public:
     explicit GeometryCB(int L_);
@@ -54,6 +55,10 @@ public:
     [[nodiscard]] std::pair<size_t, int> get_link_staple(size_t site, int mu, int i_staple,
                                                          int i_link) const {
         return links_staples[index_staples(site, mu, i_staple, i_link)];
+    }
+
+    [[nodiscard]] site_parity get_parity(size_t site) const{
+        return parity[site];
     }
 };
 

@@ -53,6 +53,18 @@ GeometryCB::GeometryCB(int L_) {
         }
     }
 
+    parity.resize(V_ext);
+    for (int t = 0; t < L_ext; t++) {
+        for (int z = 0; z < L_ext; z++) {
+            for (int y = 0; y < L_ext; y++) {
+                for (int x = 0; x < L_ext; x++) {
+                    size_t i = index(x,y,z,t);
+                    parity[i]= ((x+y+z+t)%2==0) ? EV : OD;
+                }
+            }
+        }
+    }
+
     links_staples.resize(V_ext * 4 * 6 * 3, std::make_pair(SIZE_MAX, -1));
     // 4 links per site, 6 staples per link, 3 links per staple
     for (int t = 0; t < L_ext; t++) {

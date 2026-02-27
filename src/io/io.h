@@ -19,6 +19,7 @@ void save_plaquette(const std::vector<double>& data, const std::string& filename
 void save_event_nb(const std::vector<size_t>& event_nb, const std::string& filename, const std::string& dirpath);
 void save_topo(const std::vector<double>& tQE, const std::string& filename, const std::string& dirpath, int precision);
 void save_seed(std::mt19937_64& rng, const std::string& filename, const std::string& dirpath, mpi::MpiTopology& topo);
+void save_seed(std::vector<std::mt19937_64>& rng, const std::string& filename, const std::string& dirpath, mpi::MpiTopology& topo);
 void save_params(const RunParamsHbCB& rp, const std::string& filename, const std::string& dirpath);
 void save_params(const RunParamsECB& rp, const std::string& filename, const std::string& dirpath);
 void add_shift(int shift, const std::string& filename, const std::string& dirpath);
