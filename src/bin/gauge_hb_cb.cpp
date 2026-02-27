@@ -168,7 +168,7 @@ void generate_hb_cb(const RunParamsHbCB& rp, bool existing) {
         }
 
         // Plaquette measure
-        if (i % rp.N_shift_plaquette == 0) {
+        if (i % rp.N_shift_plaquette == 0 and (i>0 or !existing)) {
             double p = mpi::observables::mean_plaquette_global(field, geo, topo);
             if (topo.rank == 0) {
                 std::cout << "====== Plaquette ======\n";
@@ -177,7 +177,7 @@ void generate_hb_cb(const RunParamsHbCB& rp, bool existing) {
             plaquette.emplace_back(p);
         }
         // Measure topo
-        if (rp.topo and (i % rp.N_shift_topo == 0)) {
+        if (rp.topo and (i % rp.N_shift_topo == 0) and (i>0 or !existing)) {
             if (topo.rank == 0) {
                 std::cout << "====== Topology ======\n";
             }
