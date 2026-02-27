@@ -9,6 +9,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 find_package(MPI REQUIRED)
+find_package(OpenMP REQUIRED)
 find_package(Eigen3 REQUIRED) # Décommente si besoin
 include(FetchContent)
 #Lime
@@ -48,7 +49,7 @@ add_executable(gauge_ecmc_cb src/bin/gauge_ecmc_cb.cpp
         src/flow/gradient_flow.cpp
         src/io/ildg.cpp
 )
-target_link_libraries(gauge_ecmc_cb PRIVATE MPI::MPI_CXX Eigen3::Eigen lime)
+target_link_libraries(gauge_ecmc_cb PRIVATE MPI::MPI_CXX Eigen3::Eigen lime OpenMP::OpenMP_CXX)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
     target_compile_options(gauge_ecmc_cb PRIVATE
             -O3
@@ -63,6 +64,7 @@ else()
             #-ffast-math
             #-march=native
             -Wall -Wextra -Wpedantic
+            -fopenmp
     )
 endif()
 
@@ -83,7 +85,7 @@ add_executable(gauge_hb_cb src/bin/gauge_hb_cb.cpp
         src/flow/gradient_flow.cpp
         src/io/ildg.cpp
 )
-target_link_libraries(gauge_hb_cb PRIVATE MPI::MPI_CXX Eigen3::Eigen lime)
+target_link_libraries(gauge_hb_cb PRIVATE MPI::MPI_CXX Eigen3::Eigen lime OpenMP::OpenMP_CXX)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
     target_compile_options(gauge_hb_cb PRIVATE
             -O3
@@ -98,6 +100,7 @@ else()
             #-ffast-math
             #-march=native
             -Wall -Wextra -Wpedantic
+            -fopenmp
     )
 endif()
 
@@ -114,7 +117,7 @@ add_executable(test src/bin/test.cpp
         src/flow/gradient_flow.cpp
         src/io/ildg.cpp
 )
-target_link_libraries(test PRIVATE MPI::MPI_CXX Eigen3::Eigen lime)
+target_link_libraries(test PRIVATE MPI::MPI_CXX Eigen3::Eigen lime OpenMP::OpenMP_CXX)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
     target_compile_options(test PRIVATE
             -O3
@@ -149,7 +152,7 @@ add_executable(reject src/bin/reject.cpp
         src/flow/gradient_flow.cpp
         src/io/ildg.cpp
 )
-target_link_libraries(reject PRIVATE MPI::MPI_CXX Eigen3::Eigen lime)
+target_link_libraries(reject PRIVATE MPI::MPI_CXX Eigen3::Eigen lime OpenMP::OpenMP_CXX)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
     target_compile_options(reject PRIVATE
             -O3
@@ -164,5 +167,6 @@ else()
             #-ffast-math
             #-march=native
             -Wall -Wextra -Wpedantic
+            -fopenmp
     )
 endif()

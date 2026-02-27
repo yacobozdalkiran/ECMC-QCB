@@ -1,17 +1,22 @@
 #include "observables_mpi.h"
 
+#include <omp.h>
+
+#include <iostream>
+
 #include "../io/io.h"
 #include "../mpi/HalosExchange.h"
-#include <iostream>
 
 // Computation of mean plaquette with halos embedded in field (needs field halos exchange first)
 double mpi::observables::mean_plaquette_local(const GaugeField& field, const GeometryCB& geo) {
     double sum = 0.0;
-    SU3 U1, U2, U3, U4;
+
+#pragma omp parallel for reduction(+ : sum) collapse(4)
     for (int t = 1; t <= geo.L_int; t++) {
         for (int z = 1; z <= geo.L_int; z++) {
             for (int y = 1; y <= geo.L_int; y++) {
                 for (int x = 1; x <= geo.L_int; x++) {
+                    SU3 U1, U2, U3, U4;
                     size_t site = geo.index(x, y, z, t);
                     for (int mu = 0; mu < 4; mu++) {
                         for (int nu = mu + 1; nu < 4; nu++) {
@@ -33,7 +38,7 @@ double mpi::observables::mean_plaquette_local(const GaugeField& field, const Geo
 // first)
 double mpi::observables::mean_plaquette_global(GaugeField& field, const GeometryCB& geo,
                                                MpiTopology& topo) {
-    //mpi::exchange::exchange_halos_cascade(field, geo, topo);
+    // mpi::exchange::exchange_halos_cascade(field, geo, topo);
     double local_mean_plaquette = mean_plaquette_local(field, geo);
     double global_mean_plaquette = 0.0;
     MPI_Allreduce(&local_mean_plaquette, &global_mean_plaquette, 1, MPI_DOUBLE, MPI_SUM,
@@ -42,7 +47,7 @@ double mpi::observables::mean_plaquette_global(GaugeField& field, const Geometry
     return global_mean_plaquette;
 }
 
-//Computation of levi-civita tensor
+// Computation of levi-civita tensor
 int mpi::observables::levi_civita(int mu, int nu, int rho, int sigma) {
     // A stocker dans un tableau
     if (mu == nu || mu == rho || mu == sigma || nu == rho || nu == sigma || rho == sigma) return 0;
@@ -111,6 +116,7 @@ std::pair<double, double> mpi::observables::topo_q_e_clover(const GaugeField& fi
                                                             const GeometryCB& geo) {
     double q = 0.0;
     double e = 0.0;
+#pragma omp parallel for reduction(+ : q, e) collapse(4)
     for (int t = 1; t <= geo.L_int; t++) {
         for (int z = 1; z <= geo.L_int; z++) {
             for (int y = 1; y <= geo.L_int; y++) {
@@ -126,7 +132,7 @@ std::pair<double, double> mpi::observables::topo_q_e_clover(const GaugeField& fi
     return {q, e};
 }
 
-//Returns topological charge and energy density of the whole lattice
+// Returns topological charge and energy density of the whole lattice
 std::pair<double, double> mpi::observables::topo_q_e_clover_global(const GaugeField& field,
                                                                    const GeometryCB& geo,
                                                                    MpiTopology& topo) {
@@ -153,7 +159,7 @@ std::pair<double, double> mpi::observables::topo_q_e_clover_global(const GaugeFi
 std::vector<double> mpi::observables::topo_charge_flowed(GaugeField& field, const GeometryCB& geo,
                                                          GradientFlow& gf, mpi::MpiTopology& topo,
                                                          int N_steps_gf, int N_rk_steps) {
-    //mpi::exchange::exchange_halos_cascade(field, geo, topo);
+    // mpi::exchange::exchange_halos_cascade(field, geo, topo);
     std::vector<double> tQE(3 * N_steps_gf);
     gf.copy(field);
     double t = 0.0;

@@ -4,7 +4,6 @@
 
 #include "heatbath_mpi.h"
 
-#include "../observables/observables_mpi.h"
 #include "heatbath.h"
 
 //Performs a Heatbath hit on a link using the Cabbibo-Marinari algorithm
@@ -67,13 +66,6 @@ std::vector<double> mpi::heatbathcb::samples(GaugeField& field, const GeometryCB
                 sweep(field, geo, params.beta, params.N_hits, rng);
             }
         }
-        // Sample
-       // double p = mpi::observables::mean_plaquette_global(field, geo, topo);
-       // if (topo.rank == 0) {
-       //     std::cout << "Sample " << m << ", <P> = " << p << " ";
-       //     std::cout << "\n";
-       //     meas[m] = p;
-       // }
     }
     return meas;
 }
