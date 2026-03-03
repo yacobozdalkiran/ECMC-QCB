@@ -2,6 +2,8 @@
 // Created by ozdalkiran-l on 1/14/26.
 //
 
+#include <omp.h>
+
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -9,7 +11,6 @@
 #include <map>
 #include <sstream>
 #include <string>
-#include <omp.h>
 extern "C" {
 #include <lime.h>
 }
@@ -74,6 +75,36 @@ void io::save_event_nb(const std::vector<size_t>& event_nb, const std::string& f
     file.close();
     std::cout << "Number of events written in " << filepath << "\n";
 }
+
+void io::save_event_nb(const std::vector<size_t>& event_nb, const std::vector<size_t>& lift_nb,
+                       const std::vector<size_t> rev_nb, const std::vector<double> lambda,
+                       const std::string& filename, const std::string& dirpath) {
+    // Create a data folder if doesn't exists
+    fs::path base_dir(dirpath);
+    fs::path dir = base_dir / filename;
+
+    try {
+        if (!fs::exists(dir)) {
+            fs::create_directories(dir);
+        }
+    } catch (const fs::filesystem_error& e) {
+        std::cerr << "Couldn't create folder data : " << e.what() << std::endl;
+        return;
+    }
+    fs::path filepath = dir / (filename + "_nbevent.txt");
+
+    std::ofstream file(filepath, std::ios::out | std::ios::app);
+    if (!file.is_open()) {
+        std::cout << "Could not open file " << filepath << "\n";
+        return;
+    }
+    for (size_t i = 0; i < event_nb.size(); i++) {
+        file << event_nb[i] << " " << lift_nb[i] << " " << rev_nb[i] << " " << lambda[i] << "\n";
+    }
+    file.close();
+    std::cout << "Number of events written in " << filepath << "\n";
+}
+
 // Saves the tQE vector into data/filename/filename_topo.txt
 void io::save_topo(const std::vector<double>& tQE, const std::string& filename,
                    const std::string& dirpath, int precision) {
@@ -221,7 +252,8 @@ void io::save_state(const LocalChainState& state, const std::string& filename,
     ofs << state.site << " " << state.mu << " " << state.epsilon << " "
         << state.theta_parcouru_refresh_site << " " << state.theta_parcouru_refresh_R << " "
         << state.theta_refresh_site << " " << state.theta_refresh_R << " " << state.set_counter
-        << " " << state.initialized << "\n";
+        << " " << state.lift_counter << " " << state.rev_counter << " " << state.initialized
+        << "\n";
 
     // Matrice SU3 R (3x3 nombres complexes)
     // On sauvegarde la partie réelle et imaginaire de chaque composante
@@ -257,7 +289,7 @@ void io::load_state(LocalChainState& state, const std::string& filename, const s
     // 3. Lecture des scalaires
     ifs >> state.site >> state.mu >> state.epsilon >> state.theta_parcouru_refresh_site >>
         state.theta_parcouru_refresh_R >> state.theta_refresh_site >> state.theta_refresh_R >>
-        state.set_counter >> state.initialized;
+        state.set_counter >> state.lift_counter >> state.rev_counter >> state.initialized;
 
     // 4. Lecture de la matrice SU3 R
     for (int i = 0; i < 3; ++i) {

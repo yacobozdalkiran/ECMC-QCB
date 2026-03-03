@@ -527,6 +527,8 @@ void mpi::ecmccb::sample_persistant(LocalChainState& state, Distributions& d, Ga
     SU3 R = state.R;
     size_t set_counter = state.set_counter;
     size_t event_counter = state.event_counter;
+    size_t lift_counter = state.lift_counter;
+    size_t rev_counter = state.rev_counter;
 
     // Budget d'angle
     double theta_sample = poisson ? d.dist_sample(rng) : params.param_theta_sample;
@@ -588,6 +590,8 @@ void mpi::ecmccb::sample_persistant(LocalChainState& state, Distributions& d, Ga
             state.theta_refresh_R = theta_refresh_R;
             state.set_counter = set_counter;
             state.event_counter = event_counter;
+            state.lift_counter = lift_counter;
+            state.rev_counter = rev_counter;
             return;
         } else if (theta_step == dist_to_refresh_site) {
             // --- EVENT: REFRESH SITE ---
@@ -625,6 +629,8 @@ void mpi::ecmccb::sample_persistant(LocalChainState& state, Distributions& d, Ga
             auto l =
                 lift_improved_fast(field, geo, site_current, mu_current, j, R, set_matrices, rng);
             set_counter++;
+            lift_counter++;
+            rev_counter += (l.first.first == site_current) ? 1 : 0;
             site_current = l.first.first;
             mu_current = l.first.second;
             epsilon_current = l.second;

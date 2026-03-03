@@ -29,6 +29,8 @@ struct LocalChainState {
     size_t set_counter;
     // Compteur de lifts
     size_t event_counter = 0;
+    size_t lift_counter = 0;
+    size_t rev_counter=0;
 };
 
 // Exp distributions if poisson

@@ -78,7 +78,13 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
         tQE_current.reserve(3 * rp.N_rk_steps * rp.N_steps_gf);
     }
     std::vector<size_t> event_nb;
+    std::vector<size_t> lift_nb;
+    std::vector<double> lambda;
+    std::vector<size_t> rev_nb;
+    lift_nb.reserve(rp.save_each_shifts / rp.N_shift_plaquette + 2);
     event_nb.reserve(rp.save_each_shifts / rp.N_shift_plaquette + 2);
+    lambda.reserve(rp.save_each_shifts / rp.N_shift_plaquette + 2);
+    rev_nb.reserve(rp.save_each_shifts / rp.N_shift_plaquette + 2);
 
     // Save params
     if (topo.rank == 0) {
@@ -125,6 +131,11 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
                 mpi::exchange::exchange_halos_cascade(field, geo, topo);
             }
 
+            // Event counter reinitialized
+            state.event_counter = 0;
+            state.lift_counter = 0;
+            state.rev_counter = 0;
+
             // Plaquette measure (not saved for thermalization)
             if (i % rp.N_shift_plaquette == 0) {
                 double p = mpi::observables::mean_plaquette_global(field, geo, topo);
@@ -144,9 +155,6 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
                   << rp.N_shift / rp.N_shift_topo << " Q samples\n";
         std::cout << "===========================================\n";
     }
-
-    // Event counter reinitialized
-    state.event_counter = 0;
 
     for (int i = 0; i < N_shift; i++) {
         if (topo.rank == 0) {
@@ -183,8 +191,43 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
             }
             plaquette.emplace_back(p);
             // Event counting
-            event_nb.emplace_back(state.event_counter);
+            // Réduction des compteurs de lifts pour lambda
+            unsigned long local_lifts = state.lift_counter;
+            unsigned long local_events = state.event_counter;
+            unsigned long local_rev = state.rev_counter;
+            unsigned long global_lifts = 0;
+            unsigned long global_events = 0;
+            unsigned long global_rev = 0;
+            MPI_Reduce(&local_lifts, &global_lifts, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0,
+                       MPI_COMM_WORLD);
+            MPI_Reduce(&local_rev, &global_rev, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+            MPI_Reduce(&local_events, &global_events, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0,
+                       MPI_COMM_WORLD);
+
+            if (topo.rank == 0) {
+                // Distance totale parcourue par l'ensemble des coeurs
+                double total_dist_all_ranks =
+                    rp.N_shift_plaquette * rp.ecmc_params.param_theta_sample * topo.size;
+
+                double avg_lambda = total_dist_all_ranks / (double)global_lifts;
+                size_t avg_lift_nb = global_lifts / topo.size;
+                size_t avg_rev_nb = global_rev / topo.size;
+                size_t avg_event_nb = global_events / topo.size;
+
+                lambda.emplace_back(avg_lambda);
+                lift_nb.emplace_back(avg_lift_nb);
+                event_nb.emplace_back(avg_event_nb);
+                rev_nb.emplace_back(avg_rev_nb);
+
+                std::cout << ">>> Average \u03bb = " << avg_lambda << ", Events : " << avg_event_nb
+                          << " (Reversibility : " << (double)avg_rev_nb / (double)avg_lift_nb * 100
+                          << "%)\n";
+            }
+
+            // Event counter reinitialized
             state.event_counter = 0;
+            state.lift_counter = 0;
+            state.rev_counter = 0;
         }
         // Measure topo
         if (rp.topo and (i % rp.N_shift_topo == 0) and (i > 0 or !existing)) {
@@ -213,7 +256,7 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
                     io::save_topo(tQE_tot, rp.run_name, rp.run_dir, precision);
                 }
                 io::add_shift(i, rp.run_name, rp.run_dir);
-                io::save_event_nb(event_nb, rp.run_name, rp.run_dir);
+                io::save_event_nb(event_nb, lift_nb, rev_nb, lambda, rp.run_name, rp.run_dir);
             }
             // Save conf
             save_ildg_clime(rp.run_name, rp.run_dir, field, geo, topo);
@@ -229,6 +272,12 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
             plaquette.reserve(rp.save_each_shifts / rp.N_shift_plaquette + 2);
             event_nb.clear();
             event_nb.reserve(rp.save_each_shifts / rp.N_shift_plaquette + 2);
+            lift_nb.clear();
+            lift_nb.reserve(rp.save_each_shifts / rp.N_shift_plaquette + 2);
+            rev_nb.clear();
+            rev_nb.reserve(rp.save_each_shifts / rp.N_shift_plaquette + 2);
+            lambda.clear();
+            lambda.reserve(rp.save_each_shifts / rp.N_shift_plaquette + 2);
             tQE_tot.clear();
             tQE_tot.reserve(3 * (rp.save_each_shifts / rp.N_shift_topo + 2) * rp.N_rk_steps *
                             rp.N_steps_gf);
@@ -248,7 +297,7 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
         }
         io::add_shift(rp.N_shift, rp.run_name, rp.run_dir);
         io::add_finished(rp.run_name, rp.run_dir);
-        io::save_event_nb(event_nb, rp.run_name, rp.run_dir);
+        io::save_event_nb(event_nb, lift_nb, rev_nb, lambda, rp.run_name, rp.run_dir);
     }
     // Save conf
     save_ildg_clime(rp.run_name, rp.run_dir, field, geo, topo);
