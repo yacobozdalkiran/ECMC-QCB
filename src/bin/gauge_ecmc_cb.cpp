@@ -128,7 +128,8 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
                               << ", Parity : Even\n";
                 }
                 parity active_parity = even;
-                mpi::ecmccb::sample_persistant(state, d, field, geo, ep, rng[0], topo, active_parity);
+                mpi::ecmccb::sample_persistant(state, d, field, geo, ep, rng[0], topo,
+                                               active_parity);
                 mpi::exchange::exchange_halos_cascade(field, geo, topo);
 
                 // Odd parity :
@@ -137,7 +138,8 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
                               << ", Parity : Odd\n";
                 }
                 active_parity = odd;
-                mpi::ecmccb::sample_persistant(state, d, field, geo, ep, rng[0], topo, active_parity);
+                mpi::ecmccb::sample_persistant(state, d, field, geo, ep, rng[0], topo,
+                                               active_parity);
                 mpi::exchange::exchange_halos_cascade(field, geo, topo);
             }
 
@@ -216,8 +218,8 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
 
             if (topo.rank == 0) {
                 // Distance totale parcourue par l'ensemble des coeurs
-                double total_dist_all_ranks =
-                    rp.N_shift_plaquette * rp.N_switch_eo * rp.ecmc_params.param_theta_sample * topo.size;
+                double total_dist_all_ranks = rp.N_shift_plaquette * rp.N_switch_eo *
+                                              rp.ecmc_params.param_theta_sample * topo.size;
 
                 double avg_lambda = total_dist_all_ranks / (double)global_lifts;
                 size_t avg_lift_nb = global_lifts / topo.size;

@@ -630,7 +630,7 @@ void mpi::ecmccb::sample_persistant(LocalChainState& state, Distributions& d, Ga
                 lift_improved_fast(field, geo, site_current, mu_current, j, R, set_matrices, rng);
             set_counter++;
             lift_counter++;
-            rev_counter += (l.first.first == site_current) ? 1 : 0;
+            rev_counter += (l.first.first == site_current and l.first.second==mu_current) ? 1 : 0;
             site_current = l.first.first;
             mu_current = l.first.second;
             epsilon_current = l.second;
