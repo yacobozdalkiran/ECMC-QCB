@@ -210,6 +210,9 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
             unsigned long global_lifts = 0;
             unsigned long global_events = 0;
             unsigned long global_rev = 0;
+            double local_lambda = (rp.N_shift_plaquette*rp.N_switch_eo*state.theta_sample)/(double)local_lifts;
+            double global_lambda = 0.0;
+            MPI_Reduce(&local_lambda, &global_lambda, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
             MPI_Reduce(&local_lifts, &global_lifts, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0,
                        MPI_COMM_WORLD);
             MPI_Reduce(&local_rev, &global_rev, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
@@ -218,10 +221,7 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
 
             if (topo.rank == 0) {
                 // Distance totale parcourue par l'ensemble des coeurs
-                double total_dist_all_ranks = rp.N_shift_plaquette * rp.N_switch_eo *
-                                              rp.ecmc_params.param_theta_sample * topo.size;
-
-                double avg_lambda = total_dist_all_ranks / (double)global_lifts;
+                double avg_lambda = global_lambda / (double)topo.size;
                 size_t avg_lift_nb = global_lifts / topo.size;
                 size_t avg_rev_nb = global_rev / topo.size;
                 size_t avg_event_nb = global_events / topo.size;

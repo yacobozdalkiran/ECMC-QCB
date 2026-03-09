@@ -586,6 +586,7 @@ void mpi::ecmccb::sample_persistant(LocalChainState& state, Distributions& d, Ga
             state.R = R;
             state.theta_parcouru_refresh_site = theta_parcouru_refresh_site + dist_to_sample;
             state.theta_parcouru_refresh_R = theta_parcouru_refresh_R + dist_to_sample;
+            state.theta_sample = theta_sample;
             state.theta_refresh_site = theta_refresh_site;
             state.theta_refresh_R = theta_refresh_R;
             state.set_counter = set_counter;

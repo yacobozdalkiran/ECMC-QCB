@@ -23,6 +23,7 @@ struct LocalChainState {
     double theta_parcouru_refresh_site = 0.0;
     double theta_parcouru_refresh_R = 0.0;
     // Budgets de Poisson persistants
+    double theta_sample = 0.0;
     double theta_refresh_site = 0.0;
     double theta_refresh_R = 0.0;
     // Compteur pour le set de matrices
