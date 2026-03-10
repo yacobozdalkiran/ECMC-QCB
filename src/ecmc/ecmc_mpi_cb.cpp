@@ -520,11 +520,11 @@ void mpi::ecmccb::sample_persistant(LocalChainState& state, Distributions& d, Ga
         state.initialized = true;
     }
 
-    // Initalisation de l'état de la chaîne
-    size_t site_current = state.site;
-    int mu_current = state.mu;
-    int epsilon_current = state.epsilon;
-    SU3 R = state.R;
+    // Initalisation de l'état de la chaîne (non persistant)
+    size_t site_current = random_site(geo, rng);
+    int mu_current = d.random_dir(rng);
+    int epsilon_current = 2 * d.random_eps(rng) - 1;
+    SU3 R = random_su3(rng);
     size_t set_counter = state.set_counter;
     size_t event_counter = state.event_counter;
     size_t lift_counter = state.lift_counter;
@@ -532,11 +532,11 @@ void mpi::ecmccb::sample_persistant(LocalChainState& state, Distributions& d, Ga
 
     // Budget d'angle
     double theta_sample = poisson ? d.dist_sample(rng) : params.param_theta_sample;
-    double theta_refresh_site = state.theta_refresh_site;
-    double theta_refresh_R = state.theta_refresh_R;
+    double theta_refresh_site = poisson ? d.dist_refresh_site(rng) : params.param_theta_refresh_site;
+    double theta_refresh_R = poisson ? d.dist_refresh_R(rng) : params.param_theta_refresh_R;
     double theta_parcouru_sample = 0.0;
-    double theta_parcouru_refresh_site = state.theta_parcouru_refresh_site;
-    double theta_parcouru_refresh_R = state.theta_parcouru_refresh_R;
+    double theta_parcouru_refresh_site = 0.0;
+    double theta_parcouru_refresh_R = 0.0;
 
     // Buffer de matrices (Optimisation : Statique pour éviter l'allocation)
     static std::vector<SU3> set_matrices(101);
