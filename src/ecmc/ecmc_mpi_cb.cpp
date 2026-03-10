@@ -273,6 +273,76 @@ double mpi::ecmccb::compute_ds(const SU3& Pi, const SU3& R_mat) {
     return res.imag();
 };
 
+std::pair<std::pair<size_t, int>, int> mpi::ecmccb::lift_improved_fast_norev(
+    const GaugeField& field, const GeometryCB& geo, size_t site, int mu, int j, SU3& R,
+    const std::vector<SU3>& set, std::mt19937_64& rng) {
+    std::array<std::pair<size_t, int>, 4>
+        links_plaquette_j;  // We add the current link to get the plaquette
+    links_plaquette_j[0] = std::make_pair(site, mu);
+    links_plaquette_j[1] = geo.get_link_staple(site, mu, j, 0);
+    links_plaquette_j[2] = geo.get_link_staple(site, mu, j, 1);
+    links_plaquette_j[3] = geo.get_link_staple(site, mu, j, 2);
+
+    SU3 U0 = field.view_link_const(site, mu);
+    SU3 U1 = field.view_link_const(links_plaquette_j[1].first, links_plaquette_j[1].second);
+    SU3 U2 = field.view_link_const(links_plaquette_j[2].first, links_plaquette_j[2].second);
+    SU3 U3 = field.view_link_const(links_plaquette_j[3].first, links_plaquette_j[3].second);
+    std::array<double, 4> probas{};
+    std::array<double, 4> abs_dS{};
+    double sum = 0.0;
+    std::array<int, 4> sign_dS{};
+    std::array<SU3, 4> P{};
+
+    if (j % 2 == 0) {  // Forward plaquette
+        SU3 U01 = U0 * U1;
+        SU3 U32 = U3 * U2;
+        P[0] = U01 * U32.adjoint();
+        P[1] = U1 * U32.adjoint() * U0;
+        P[2] = U2 * U01.adjoint() * U3;
+        P[3] = P[0].adjoint();
+    } else {                // Backward plaquette
+        SU3 U21 = U2 * U1;  // 1 mult + adjoint
+        SU3 T = U0 * U21.adjoint();
+        P[0] = T * U3;
+        P[1] = U1 * U0.adjoint() * U3.adjoint() * U2;
+        P[3] = U3 * T;
+        P[2] = P[3].adjoint();
+    }
+    for (size_t i = 0; i < 4; i++) {
+        // probas[i] = (lambda_3 * R.adjoint() * P[i] * R).trace().imag();
+        probas[i] = compute_ds(P[i], R);  // Less matmuls
+        sign_dS[i] = dsign(probas[i]);
+        probas[i] = abs(probas[i]);
+        abs_dS[i] = probas[i];
+        sum += probas[i];
+    }
+
+    for (size_t i = 0; i < 4; i++) {
+        probas[i] /= sum;
+    }
+    size_t index_lift = selectVariable(probas, rng);
+
+    // Change R
+    static std::uniform_real_distribution<double> unif01(0.0, 1.0);
+    static std::uniform_int_distribution<size_t> set_index(0, set.size() - 1);
+    SU3 R_new;
+    size_t i_set = set_index(rng);
+    R_new = set[i_set] * R;
+    double dS_j_R = sign_dS[index_lift] * abs_dS[index_lift];
+    double dS_j_R_new = compute_ds(P[index_lift], R_new);
+    double new_epsilon = -sign_dS[index_lift];
+    if (abs(dS_j_R) < abs(dS_j_R_new)) {
+        R = R_new;
+        new_epsilon = -dsign(dS_j_R_new);
+    } else {
+        double r = unif01(rng);
+        if (r < abs(dS_j_R_new) / abs(dS_j_R)) {
+            R = R_new;
+            new_epsilon = -dsign(dS_j_R_new);
+        }
+    }
+    return make_pair(links_plaquette_j[index_lift], new_epsilon);
+}
 // Optimized version of lift_improved
 std::pair<std::pair<size_t, int>, int> mpi::ecmccb::lift_improved_fast(
     const GaugeField& field, const GeometryCB& geo, size_t site, int mu, int j, SU3& R,
@@ -532,7 +602,8 @@ void mpi::ecmccb::sample_persistant(LocalChainState& state, Distributions& d, Ga
 
     // Budget d'angle
     double theta_sample = poisson ? d.dist_sample(rng) : params.param_theta_sample;
-    double theta_refresh_site = poisson ? d.dist_refresh_site(rng) : params.param_theta_refresh_site;
+    double theta_refresh_site =
+        poisson ? d.dist_refresh_site(rng) : params.param_theta_refresh_site;
     double theta_refresh_R = poisson ? d.dist_refresh_R(rng) : params.param_theta_refresh_R;
     double theta_parcouru_sample = 0.0;
     double theta_parcouru_refresh_site = 0.0;
@@ -631,10 +702,171 @@ void mpi::ecmccb::sample_persistant(LocalChainState& state, Distributions& d, Ga
                 lift_improved_fast(field, geo, site_current, mu_current, j, R, set_matrices, rng);
             set_counter++;
             lift_counter++;
-            rev_counter += (l.first.first == site_current and l.first.second==mu_current) ? 1 : 0;
+            rev_counter += (l.first.first == site_current and l.first.second == mu_current) ? 1 : 0;
             site_current = l.first.first;
             mu_current = l.first.second;
             epsilon_current = l.second;
+        }
+    }
+}
+
+void mpi::ecmccb::sample_persistant_norev(LocalChainState& state, Distributions& d,
+                                          GaugeField& field, const GeometryCB& geo,
+                                          const ECMCParams& params, std::mt19937_64& rng,
+                                          mpi::MpiTopology& topo, parity active_parity) {
+    // Checkboard
+    if (topo.p != active_parity) return;
+
+    // Constantes et Distributions
+    const double beta = params.beta;
+    const bool poisson = params.poisson;
+
+    // Initialisation de l'état de la chaîne si nécessaire
+    if (!state.initialized) {
+        state.site = random_site(geo, rng);
+        state.mu = d.random_dir(rng);
+        state.epsilon = 2 * d.random_eps(rng) - 1;
+        state.R = random_su3(rng);
+        state.theta_refresh_site =
+            poisson ? d.dist_refresh_site(rng) : params.param_theta_refresh_site;
+        state.theta_refresh_R = poisson ? d.dist_refresh_R(rng) : params.param_theta_refresh_R;
+        state.theta_parcouru_refresh_site = 0.0;
+        state.theta_parcouru_refresh_R = 0.0;
+        state.set_counter = 0;
+        state.event_counter = 0;
+        state.initialized = true;
+    }
+
+    // Initalisation de l'état de la chaîne (non persistant)
+    size_t site_current = random_site(geo, rng);
+    int mu_current = d.random_dir(rng);
+    int epsilon_current = 2 * d.random_eps(rng) - 1;
+    SU3 R = random_su3(rng);
+    size_t set_counter = state.set_counter;
+    size_t event_counter = state.event_counter;
+    size_t lift_counter = state.lift_counter;
+    size_t rev_counter = state.rev_counter;
+
+    // Budget d'angle
+    double theta_sample = poisson ? d.dist_sample(rng) : params.param_theta_sample;
+    double theta_refresh_site =
+        poisson ? d.dist_refresh_site(rng) : params.param_theta_refresh_site;
+    double theta_refresh_R = poisson ? d.dist_refresh_R(rng) : params.param_theta_refresh_R;
+    double theta_parcouru_sample = 0.0;
+    double theta_parcouru_refresh_site = 0.0;
+    double theta_parcouru_refresh_R = 0.0;
+
+    // Buffer de matrices (Optimisation : Statique pour éviter l'allocation)
+    static std::vector<SU3> set_matrices(101);
+    ecmc_set(params.epsilon_set, set_matrices, rng);
+
+    // Buffers de travail
+    std::array<double, 6> reject_angles;
+    std::array<SU3, 6> list_staple;
+
+    while (true) {
+        // Actualisation set update R
+        if (set_counter % 100 == 0) {
+            ecmc_set(params.epsilon_set, set_matrices, rng);
+            set_counter = 0;
+        }
+
+        compute_list_staples(field, geo, site_current, mu_current, list_staple);
+        compute_reject_angles_fast(field, site_current, mu_current, list_staple, R, epsilon_current,
+                                   beta, reject_angles, rng);
+
+        int j = 0;
+        double theta_reject = reject_angles[0];
+        for (int k = 1; k < 6; ++k) {
+            if (reject_angles[k] < theta_reject) {
+                theta_reject = reject_angles[k];
+                j = k;
+            }
+        }
+
+        // Distances aux frontières
+        double dist_to_sample = theta_sample - theta_parcouru_sample;
+        double dist_to_refresh_site = theta_refresh_site - theta_parcouru_refresh_site;
+        double dist_to_refresh_R = theta_refresh_R - theta_parcouru_refresh_R;
+
+        // Premier événement
+        double theta_step =
+            std::min({theta_reject, dist_to_sample, dist_to_refresh_site, dist_to_refresh_R});
+
+        if (theta_step == dist_to_sample) {
+            // --- EVENT: SAMPLE ---
+            update(field, site_current, mu_current, dist_to_sample, epsilon_current, R);
+            event_counter++;
+            // --- SAUVEGARDE DE L'ÉTAT AVANT LE RETOUR ---
+            state.site = site_current;
+            state.mu = mu_current;
+            state.epsilon = epsilon_current;
+            state.R = R;
+            state.theta_parcouru_refresh_site = theta_parcouru_refresh_site + dist_to_sample;
+            state.theta_parcouru_refresh_R = theta_parcouru_refresh_R + dist_to_sample;
+            state.theta_sample = theta_sample;
+            state.theta_refresh_site = theta_refresh_site;
+            state.theta_refresh_R = theta_refresh_R;
+            state.set_counter = set_counter;
+            state.event_counter = event_counter;
+            state.lift_counter = lift_counter;
+            state.rev_counter = rev_counter;
+            return;
+        } else if (theta_step == dist_to_refresh_site) {
+            // --- EVENT: REFRESH SITE ---
+            update(field, site_current, mu_current, dist_to_refresh_site, epsilon_current, R);
+            event_counter++;
+
+            theta_parcouru_sample += dist_to_refresh_site;
+            theta_parcouru_refresh_R += dist_to_refresh_site;
+            theta_parcouru_refresh_site = 0.0;
+            if (poisson) theta_refresh_site = d.dist_refresh_site(rng);
+
+            site_current = random_site(geo, rng);
+            mu_current = d.random_dir(rng);
+            epsilon_current = 2 * d.random_eps(rng) - 1;
+        } else if (theta_step == dist_to_refresh_R) {
+            // --- EVENT: REFRESH R ---
+            update(field, site_current, mu_current, dist_to_refresh_R, epsilon_current, R);
+            event_counter++;
+
+            theta_parcouru_sample += dist_to_refresh_R;
+            theta_parcouru_refresh_site += dist_to_refresh_R;
+            theta_parcouru_refresh_R = 0.0;
+            if (poisson) theta_refresh_R = d.dist_refresh_R(rng);
+
+            R = random_su3(rng);
+        } else {
+            // --- EVENT: LIFT ---
+            update(field, site_current, mu_current, theta_reject, epsilon_current, R);
+            event_counter++;
+
+            theta_parcouru_sample += theta_reject;
+            theta_parcouru_refresh_site += theta_reject;
+            theta_parcouru_refresh_R += theta_reject;
+
+            auto l = lift_improved_fast_norev(field, geo, site_current, mu_current, j, R,
+                                              set_matrices, rng);
+            if (geo.is_frozen(l.first.first, l.first.second)) {
+                // Refresh si lift vers lien gelé
+                site_current = random_site(geo, rng);
+                mu_current = d.random_dir(rng);
+                epsilon_current = 2 * d.random_eps(rng) - 1;
+                R = random_su3(rng);
+                theta_parcouru_refresh_site = 0.0;
+                if (poisson) theta_refresh_site = d.dist_refresh_site(rng);
+                theta_parcouru_refresh_R = 0.0;
+                if (poisson) theta_refresh_R = d.dist_refresh_R(rng);
+            } else {
+                //On lifte
+                set_counter++;
+                lift_counter++;
+                rev_counter +=
+                    (l.first.first == site_current and l.first.second == mu_current) ? 1 : 0;
+                site_current = l.first.first;
+                mu_current = l.first.second;
+                epsilon_current = l.second;
+            }
         }
     }
 }

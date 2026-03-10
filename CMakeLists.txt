@@ -68,6 +68,41 @@ else()
     )
 endif()
 
+#===ECMC QCB norev===
+add_executable(gauge_ecmc_cb_norev src/bin/gauge_ecmc_cb.cpp
+        src/gauge/GaugeField.cpp
+        src/su3/utils.cpp
+        src/geometry/GeometryCB.cpp
+        src/geometry/types.h
+        src/mpi/MpiTopology.cpp
+        src/mpi/HalosExchange.cpp
+        src/observables/observables_mpi.cpp
+        src/mpi/Shift.cpp
+        src/ecmc/ecmc_mpi_cb.cpp
+        src/io/params.h
+        src/io/io.cpp
+        src/flow/gradient_flow.cpp
+        src/io/ildg.cpp
+)
+target_link_libraries(gauge_ecmc_cb_norev PRIVATE MPI::MPI_CXX Eigen3::Eigen lime OpenMP::OpenMP_CXX)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
+    target_compile_options(gauge_ecmc_cb_norev PRIVATE
+            -O3
+            -xHost            # Remplace -march=native pour Intel
+            -qopenmp
+            -fp-model precise
+            -Wall -Wextra
+    )
+else()
+    target_compile_options(gauge_ecmc_cb_norev PRIVATE
+            -O2
+            #-ffast-math
+            #-march=native
+            -Wall -Wextra -Wpedantic
+            -fopenmp
+    )
+endif()
+
 #===HB QCB===
 add_executable(gauge_hb_cb src/bin/gauge_hb_cb.cpp
         src/gauge/GaugeField.cpp
