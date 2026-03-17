@@ -290,28 +290,13 @@ std::pair<std::pair<size_t, int>, int> mpi::ecmccb::lift_improved_fast_norev(
     const GaugeField& field, const GeometryCB& geo, size_t site, int mu, int j, SU3& R,
     std::mt19937_64& rng) {
     // Choose a link with same probas, no reversibility
-    std::array<double, 3> probas = {0.0, 0.0, 0.0};
-    double sum = 0.0;
-
-    // 1. Évaluer quels liens du staple sont accessibles
-    for (int i = 0; i < 3; ++i) {
-        auto coord_staple = geo.get_link_staple(site, mu, j, i);
-        if (!geo.is_frozen(coord_staple.first, coord_staple.second)) {
-            probas[i] = 1.0;
-            sum += 1.0;
-        }
-    }
-
-    // 2. Normaliser les probabilités
-    if (sum > 0.0) {
-        for (int i = 0; i < 3; ++i) {
-            probas[i] /= sum;
-        }
-    } else {
-        return std::make_pair(std::make_pair(site, mu), -1);
-    }
+    std::array<double, 3> probas = {1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0};
     size_t index_lift = selectVariable_norev(probas, rng);
     int epsilon = 1;
+    auto l = geo.get_link_staple(site, mu, j, index_lift);
+    if (geo.is_frozen(l.first, l.second)) {
+        return std::make_pair(std::make_pair(site, mu), -1);
+    }
     if (j % 2 == 0) {
         // Forward plaquette
         if (index_lift == 0) {
@@ -846,21 +831,17 @@ void mpi::ecmccb::sample_persistant_norev(LocalChainState& state, Distributions&
             theta_parcouru_refresh_R += theta_reject;
 
             auto l = lift_improved_fast_norev(field, geo, site_current, mu_current, j, R, rng);
-            if (geo.is_frozen(l.first.first, l.first.second)) {
-                std::cerr << "Lift vers lien gelé !\n";
-            } else {
-                // On lifte
-                set_counter++;
-                lift_counter++;
-                rev_counter += (l.first.first == site_current and l.first.second == mu_current and
-                                l.second == -1)
-                                   ? 1
-                                   : 0;
-                site_current = l.first.first;
-                mu_current = l.first.second;
-                epsilon_current = epsilon_current * l.second;
-                proj_su3(R);
-            }
+            // On lifte
+            set_counter++;
+            lift_counter++;
+            rev_counter +=
+                (l.first.first == site_current and l.first.second == mu_current and l.second == -1)
+                    ? 1
+                    : 0;
+            site_current = l.first.first;
+            mu_current = l.first.second;
+            epsilon_current = epsilon_current * l.second;
+            proj_su3(R);
         }
     }
 }
