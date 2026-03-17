@@ -58,9 +58,6 @@ void compute_list_staples(const GaugeField& field, const GeometryCB& geo, size_t
 #pragma omp declare simd
 inline void solve_reject_fast(double A, double B, double& gamma, double& reject, int epsilon) {
     // Utilisation de ternaires pour éviter les sauts (branches)
-    if (std::isnan(A) or std::isnan(B)){
-        std::cout << "A : " << A << " B : " << B << "\n";
-    }
     B = (epsilon == -1) ? -B : B;
 
     // std::hypot est souvent mieux vectorisé par SVML
