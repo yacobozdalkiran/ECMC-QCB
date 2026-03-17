@@ -455,7 +455,7 @@ void mpi::ecmccb::update(GaugeField& field, size_t site, int mu, double theta, i
 // Returns a random non frozen site
 size_t mpi::ecmccb::random_site(const GeometryCB& geo, std::mt19937_64& rng) {
     int L = geo.L_int;
-    static std::uniform_int_distribution random_coord(1, L - 1);
+    static std::uniform_int_distribution random_coord(1, L);
     int x = random_coord(rng);
     int y = random_coord(rng);
     int z = random_coord(rng);
