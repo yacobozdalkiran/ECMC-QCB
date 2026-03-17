@@ -760,12 +760,11 @@ void mpi::ecmccb::sample_persistant_norev(LocalChainState& state, Distributions&
 
     // Budget d'angle
     double theta_sample = poisson ? d.dist_sample(rng) : params.param_theta_sample;
-    double theta_refresh_site =
-        poisson ? d.dist_refresh_site(rng) : params.param_theta_refresh_site;
-    double theta_refresh_R = poisson ? d.dist_refresh_R(rng) : params.param_theta_refresh_R;
+    double theta_refresh_site = state.theta_refresh_site;
+    double theta_refresh_R = state.theta_refresh_R;
     double theta_parcouru_sample = 0.0;
-    double theta_parcouru_refresh_site = 0.0;
-    double theta_parcouru_refresh_R = 0.0;
+    double theta_parcouru_refresh_site = state.theta_parcouru_refresh_site;
+    double theta_parcouru_refresh_R = state.theta_parcouru_refresh_R;
 
     // Buffers de travail
     std::array<double, 6> reject_angles;
