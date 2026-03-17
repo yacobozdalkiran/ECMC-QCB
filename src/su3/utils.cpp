@@ -191,3 +191,24 @@ SU3 exp_su3_luscher(const SU3& Z, double coeff) {
 
     return q0 * Id + q1 * X + q2 * X2;
 }
+void proj_su3(SU3& R) {
+    SU3 temp = R;
+
+    Eigen::Vector3cd c0 = temp.col(0);
+    c0.normalize();
+
+    Eigen::Vector3cd c1 = temp.col(1);
+    c1 -= c0 * c0.dot(c1);
+    c1.normalize();
+
+    Eigen::Vector3cd c2;
+    c2(0) = std::conj(c0(1) * c1(2) - c0(2) * c1(1));
+    c2(1) = std::conj(c0(2) * c1(0) - c0(0) * c1(2));
+    c2(2) = std::conj(c0(0) * c1(1) - c0(1) * c1(0));
+
+    temp.col(0) = c0;
+    temp.col(1) = c1;
+    temp.col(2) = c2;
+
+    R = temp;
+};

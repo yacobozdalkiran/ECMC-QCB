@@ -859,6 +859,7 @@ void mpi::ecmccb::sample_persistant_norev(LocalChainState& state, Distributions&
                 site_current = l.first.first;
                 mu_current = l.first.second;
                 epsilon_current = epsilon_current * l.second;
+                proj_su3(R);
             }
         }
     }
