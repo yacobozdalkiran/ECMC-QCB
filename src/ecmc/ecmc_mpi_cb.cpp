@@ -208,10 +208,15 @@ void mpi::ecmccb::compute_reject_angles_fast(const GaugeField& field, size_t sit
     static std::uniform_real_distribution<double> unif01_g(0.0, 1.0);
     const double beta_red = -(beta / 3.0);
     const SU3 T = R.adjoint() * field.view_link_const(site, mu);
+    // std::cout << "R : " << R << "\n";
+    // std::cout << "Site : " << site << " mu : " << mu <<"\n";
+    // std::cout << field.view_link_const(site, mu)<<"\n";
 
     // 1. Pré-génération des gamma (les RNG sont séquentiels par nature)
     double gammas[6];
-    for (int i = 0; i < 6; ++i) gammas[i] = -std::log(unif01_g(rng));
+    for (int i = 0; i < 6; ++i) {
+        gammas[i] = -std::log(1.0 - unif01_g(rng));
+    }
 
 // 2. Boucle de calcul parallèle (SIMD)
 // Avec Intel oneAPI, ce pragma force le compilateur à utiliser SVML pour log/atan2/asin
@@ -241,7 +246,6 @@ void mpi::ecmccb::compute_reject_angles_fast(const GaugeField& field, size_t sit
 
         double A = (P00.real() + P11.real()) * beta_red;
         double B = (P11.imag() - P00.imag()) * beta_red;
-
         // Appel de la version inline vectorisée
         solve_reject_fast(A, B, gammas[i], reject_angles[i], epsilon);
     }
@@ -257,6 +261,15 @@ size_t mpi::ecmccb::selectVariable(const std::array<double, 4>& probas, std::mt1
     if (r < probas[0] + probas[1]) return 1;
     if (r < probas[0] + probas[1] + probas[2]) return 2;
     return 3;
+}
+size_t mpi::ecmccb::selectVariable_norev(const std::array<double, 3>& probas,
+                                         std::mt19937_64& rng) {
+    static std::uniform_real_distribution<double> unif01(0.0, 1.0);
+    double r = unif01(rng);
+
+    if (r < probas[0]) return 0;
+    if (r < probas[0] + probas[1]) return 1;
+    return 2;
 }
 
 // Optimised computation of ImTr(lambda_3*R_mat.adjoint()*Pi*R_mat)
@@ -275,73 +288,71 @@ double mpi::ecmccb::compute_ds(const SU3& Pi, const SU3& R_mat) {
 
 std::pair<std::pair<size_t, int>, int> mpi::ecmccb::lift_improved_fast_norev(
     const GaugeField& field, const GeometryCB& geo, size_t site, int mu, int j, SU3& R,
-    const std::vector<SU3>& set, std::mt19937_64& rng) {
-    std::array<std::pair<size_t, int>, 4>
-        links_plaquette_j;  // We add the current link to get the plaquette
-    links_plaquette_j[0] = std::make_pair(site, mu);
-    links_plaquette_j[1] = geo.get_link_staple(site, mu, j, 0);
-    links_plaquette_j[2] = geo.get_link_staple(site, mu, j, 1);
-    links_plaquette_j[3] = geo.get_link_staple(site, mu, j, 2);
-
-    SU3 U0 = field.view_link_const(site, mu);
-    SU3 U1 = field.view_link_const(links_plaquette_j[1].first, links_plaquette_j[1].second);
-    SU3 U2 = field.view_link_const(links_plaquette_j[2].first, links_plaquette_j[2].second);
-    SU3 U3 = field.view_link_const(links_plaquette_j[3].first, links_plaquette_j[3].second);
-    std::array<double, 4> probas{};
-    std::array<double, 4> abs_dS{};
+    std::mt19937_64& rng) {
+    // Choose a link with same probas, no reversibility
+    std::array<double, 3> probas = {0.0, 0.0, 0.0};
     double sum = 0.0;
-    std::array<int, 4> sign_dS{};
-    std::array<SU3, 4> P{};
 
-    if (j % 2 == 0) {  // Forward plaquette
-        SU3 U01 = U0 * U1;
-        SU3 U32 = U3 * U2;
-        P[0] = U01 * U32.adjoint();
-        P[1] = U1 * U32.adjoint() * U0;
-        P[2] = U2 * U01.adjoint() * U3;
-        P[3] = P[0].adjoint();
-    } else {                // Backward plaquette
-        SU3 U21 = U2 * U1;  // 1 mult + adjoint
-        SU3 T = U0 * U21.adjoint();
-        P[0] = T * U3;
-        P[1] = U1 * U0.adjoint() * U3.adjoint() * U2;
-        P[3] = U3 * T;
-        P[2] = P[3].adjoint();
-    }
-    for (size_t i = 0; i < 4; i++) {
-        // probas[i] = (lambda_3 * R.adjoint() * P[i] * R).trace().imag();
-        probas[i] = compute_ds(P[i], R);  // Less matmuls
-        sign_dS[i] = dsign(probas[i]);
-        probas[i] = abs(probas[i]);
-        abs_dS[i] = probas[i];
-        sum += probas[i];
-    }
-
-    for (size_t i = 0; i < 4; i++) {
-        probas[i] /= sum;
-    }
-    size_t index_lift = selectVariable(probas, rng);
-
-    // Change R
-    static std::uniform_real_distribution<double> unif01(0.0, 1.0);
-    static std::uniform_int_distribution<size_t> set_index(0, set.size() - 1);
-    SU3 R_new;
-    size_t i_set = set_index(rng);
-    R_new = set[i_set] * R;
-    double dS_j_R = sign_dS[index_lift] * abs_dS[index_lift];
-    double dS_j_R_new = compute_ds(P[index_lift], R_new);
-    double new_epsilon = -sign_dS[index_lift];
-    if (abs(dS_j_R) < abs(dS_j_R_new)) {
-        R = R_new;
-        new_epsilon = -dsign(dS_j_R_new);
-    } else {
-        double r = unif01(rng);
-        if (r < abs(dS_j_R_new) / abs(dS_j_R)) {
-            R = R_new;
-            new_epsilon = -dsign(dS_j_R_new);
+    // 1. Évaluer quels liens du staple sont accessibles
+    for (int i = 0; i < 3; ++i) {
+        auto coord_staple = geo.get_link_staple(site, mu, j, i);
+        if (!geo.is_frozen(coord_staple.first, coord_staple.second)) {
+            probas[i] = 1.0;
+            sum += 1.0;
         }
     }
-    return make_pair(links_plaquette_j[index_lift], new_epsilon);
+
+    // 2. Normaliser les probabilités
+    if (sum > 0.0) {
+        for (int i = 0; i < 3; ++i) {
+            probas[i] /= sum;
+        }
+    } else {
+        return std::make_pair(std::make_pair(site, mu), -1);
+    }
+    size_t index_lift = selectVariable_norev(probas, rng);
+    int epsilon = 1;
+    if (j % 2 == 0) {
+        // Forward plaquette
+        if (index_lift == 0) {
+            // Change R
+            SU3 R2 = field.view_link_const(site, mu).adjoint() * R;
+            R = R2;
+            // Change epsilon
+            epsilon = -1;
+        }
+        if (index_lift == 1) {
+            auto coord_u4 = geo.get_link_staple(site, mu, j, 2);
+            SU3 R3 = field.view_link_const(coord_u4.first, coord_u4.second).adjoint() * R;
+            R = R3;
+            // No change for epsilon
+        }
+        // If index_lift==2, no change for epsilon or R
+    } else {
+        // Backward plaquette
+        auto coord_u7 = geo.get_link_staple(site, mu, j, 2);
+        if (index_lift == 0) {
+            auto coord_u6 = geo.get_link_staple(site, mu, j, 1);
+            SU3 R5 = field.view_link_const(coord_u6.first, coord_u6.second).adjoint() *
+                     field.view_link_const(coord_u7.first, coord_u7.second) * R;
+            R = R5;
+            // No change for epsilon
+        }
+        if (index_lift == 1) {
+            SU3 R6 = field.view_link_const(coord_u7.first, coord_u7.second) * R;
+            R = R6;
+            // No change for epsilon
+        }
+        if (index_lift == 2) {
+            SU3 R7 = field.view_link_const(coord_u7.first, coord_u7.second) * R;
+            R = R7;
+            epsilon = -1;
+        }
+    }
+
+    // std::cout << geo.get_link_staple(site, mu, j, index_lift).first << " " <<
+    // geo.get_link_staple(site, mu, j, index_lift).second << " " << epsilon << "\n";
+    return std::make_pair(geo.get_link_staple(site, mu, j, index_lift), epsilon);
 }
 // Optimized version of lift_improved
 std::pair<std::pair<size_t, int>, int> mpi::ecmccb::lift_improved_fast(
@@ -438,7 +449,7 @@ void mpi::ecmccb::update(GaugeField& field, size_t site, int mu, double theta, i
     T.row(0) *= PhasePlus;
     T.row(1) *= PhaseMoins;
     field.view_link(site, mu) = R * T;
-    // projection_su3(links, site, mu);
+    field.projection_su3(site, mu);
 }
 
 // Returns a random non frozen site
@@ -738,10 +749,10 @@ void mpi::ecmccb::sample_persistant_norev(LocalChainState& state, Distributions&
     }
 
     // Initalisation de l'état de la chaîne (non persistant)
-    size_t site_current = random_site(geo, rng);
-    int mu_current = d.random_dir(rng);
-    int epsilon_current = 2 * d.random_eps(rng) - 1;
-    SU3 R = random_su3(rng);
+    size_t site_current = state.site;
+    int mu_current = state.mu;
+    int epsilon_current = state.epsilon;
+    SU3 R = state.R;
     size_t set_counter = state.set_counter;
     size_t event_counter = state.event_counter;
     size_t lift_counter = state.lift_counter;
@@ -756,21 +767,11 @@ void mpi::ecmccb::sample_persistant_norev(LocalChainState& state, Distributions&
     double theta_parcouru_refresh_site = 0.0;
     double theta_parcouru_refresh_R = 0.0;
 
-    // Buffer de matrices (Optimisation : Statique pour éviter l'allocation)
-    static std::vector<SU3> set_matrices(101);
-    ecmc_set(params.epsilon_set, set_matrices, rng);
-
     // Buffers de travail
     std::array<double, 6> reject_angles;
     std::array<SU3, 6> list_staple;
 
     while (true) {
-        // Actualisation set update R
-        if (set_counter % 100 == 0) {
-            ecmc_set(params.epsilon_set, set_matrices, rng);
-            set_counter = 0;
-        }
-
         compute_list_staples(field, geo, site_current, mu_current, list_staple);
         compute_reject_angles_fast(field, site_current, mu_current, list_staple, R, epsilon_current,
                                    beta, reject_angles, rng);
@@ -845,27 +846,20 @@ void mpi::ecmccb::sample_persistant_norev(LocalChainState& state, Distributions&
             theta_parcouru_refresh_site += theta_reject;
             theta_parcouru_refresh_R += theta_reject;
 
-            auto l = lift_improved_fast_norev(field, geo, site_current, mu_current, j, R,
-                                              set_matrices, rng);
+            auto l = lift_improved_fast_norev(field, geo, site_current, mu_current, j, R, rng);
             if (geo.is_frozen(l.first.first, l.first.second)) {
-                // Refresh si lift vers lien gelé
-                site_current = random_site(geo, rng);
-                mu_current = d.random_dir(rng);
-                epsilon_current = 2 * d.random_eps(rng) - 1;
-                R = random_su3(rng);
-                theta_parcouru_refresh_site = 0.0;
-                if (poisson) theta_refresh_site = d.dist_refresh_site(rng);
-                theta_parcouru_refresh_R = 0.0;
-                if (poisson) theta_refresh_R = d.dist_refresh_R(rng);
+                std::cerr << "Lift vers lien gelé !\n";
             } else {
-                //On lifte
+                // On lifte
                 set_counter++;
                 lift_counter++;
-                rev_counter +=
-                    (l.first.first == site_current and l.first.second == mu_current) ? 1 : 0;
+                rev_counter += (l.first.first == site_current and l.first.second == mu_current and
+                                l.second == -1)
+                                   ? 1
+                                   : 0;
                 site_current = l.first.first;
                 mu_current = l.first.second;
-                epsilon_current = l.second;
+                epsilon_current = epsilon_current * l.second;
             }
         }
     }

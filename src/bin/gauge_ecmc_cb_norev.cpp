@@ -121,6 +121,9 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
             }
             // Random shift
             mpi::shift::random_shift(field, geo, halo_shift, topo, rng[0]);
+            // New chain
+            state.initialized = false;
+
             for (int j = 0; j < N_switch_eo; j++) {
                 // Even parity :
                 if (topo.rank == 0) {
@@ -129,7 +132,7 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
                 }
                 parity active_parity = even;
                 mpi::ecmccb::sample_persistant_norev(state, d, field, geo, ep, rng[0], topo,
-                                               active_parity);
+                                                     active_parity);
                 mpi::exchange::exchange_halos_cascade(field, geo, topo);
 
                 // Odd parity :
@@ -139,7 +142,7 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
                 }
                 active_parity = odd;
                 mpi::ecmccb::sample_persistant_norev(state, d, field, geo, ep, rng[0], topo,
-                                               active_parity);
+                                                     active_parity);
                 mpi::exchange::exchange_halos_cascade(field, geo, topo);
             }
 
@@ -175,6 +178,8 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
 
         // Random shift
         mpi::shift::random_shift(field, geo, halo_shift, topo, rng[0]);
+        // New chain
+        state.initialized = false;
 
         for (int j = 0; j < N_switch_eo; j++) {
             // Even parity :
@@ -182,7 +187,8 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
                 std::cout << "Shift : " << i << ", Switch : " << j << ", Parity : Even\n";
             }
             parity active_parity = even;
-            mpi::ecmccb::sample_persistant_norev(state, d, field, geo, ep, rng[0], topo, active_parity);
+            mpi::ecmccb::sample_persistant_norev(state, d, field, geo, ep, rng[0], topo,
+                                                 active_parity);
             mpi::exchange::exchange_halos_cascade(field, geo, topo);
 
             // Odd parity :
@@ -190,12 +196,13 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
                 std::cout << "Shift : " << i << ", Switch : " << j << ", Parity : Odd\n";
             }
             active_parity = odd;
-            mpi::ecmccb::sample_persistant_norev(state, d, field, geo, ep, rng[0], topo, active_parity);
+            mpi::ecmccb::sample_persistant_norev(state, d, field, geo, ep, rng[0], topo,
+                                                 active_parity);
             mpi::exchange::exchange_halos_cascade(field, geo, topo);
         }
 
         // Plaquette measure
-        if ((i % rp.N_shift_plaquette == 0) and (i > 0 or !existing)) {
+        if ((i % rp.N_shift_plaquette == 0)) {
             double p = mpi::observables::mean_plaquette_global(field, geo, topo);
             if (topo.rank == 0) {
                 std::cout << "====== Plaquette ======\n";
@@ -210,7 +217,8 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
             unsigned long global_lifts = 0;
             unsigned long global_events = 0;
             unsigned long global_rev = 0;
-            double local_lambda = (rp.N_shift_plaquette*rp.N_switch_eo*state.theta_sample)/(double)local_lifts;
+            double local_lambda =
+                (rp.N_shift_plaquette * rp.N_switch_eo * state.theta_sample) / (double)local_lifts;
             double global_lambda = 0.0;
             MPI_Reduce(&local_lambda, &global_lambda, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
             MPI_Reduce(&local_lifts, &global_lifts, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0,

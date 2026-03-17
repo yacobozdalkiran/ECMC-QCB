@@ -69,7 +69,7 @@ else()
 endif()
 
 #===ECMC QCB norev===
-add_executable(gauge_ecmc_cb_norev src/bin/gauge_ecmc_cb.cpp
+add_executable(gauge_ecmc_cb_norev src/bin/gauge_ecmc_cb_norev.cpp
         src/gauge/GaugeField.cpp
         src/su3/utils.cpp
         src/geometry/GeometryCB.cpp
