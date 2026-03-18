@@ -107,7 +107,6 @@ double compute_ds(const SU3& Pi, const SU3& R_mat);
 std::pair<std::pair<size_t, int>, int> lift_improved_fast(const GaugeField& field,
                                                           const GeometryCB& geo, size_t site,
                                                           int mu, int j, SU3& R,
-                                                          const std::vector<SU3>& set,
                                                           std::mt19937_64& rng, int epsilon_current);
 std::pair<std::pair<size_t, int>, int> lift_improved_fast_norev(const GaugeField& field,
                                                                 const GeometryCB& geo, size_t site,
@@ -115,8 +114,6 @@ std::pair<std::pair<size_t, int>, int> lift_improved_fast_norev(const GaugeField
                                                                 std::mt19937_64& rng);
 void update(GaugeField& field, size_t site, int mu, double theta, int epsilon, const SU3& R);
 size_t random_site(const GeometryCB& geo, std::mt19937_64& rng);
-void sample(GaugeField& field, const GeometryCB& geo, const ECMCParams& params,
-            std::mt19937_64& rng, mpi::MpiTopology& topo, parity active_parity);
 void sample_persistant(LocalChainState& state, Distributions& d, GaugeField& field,
                        const GeometryCB& geo, const ECMCParams& params, std::mt19937_64& rng,
                        mpi::MpiTopology& topo, parity active_parity);
