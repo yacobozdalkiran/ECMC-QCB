@@ -108,7 +108,7 @@ std::pair<std::pair<size_t, int>, int> lift_improved_fast(const GaugeField& fiel
                                                           const GeometryCB& geo, size_t site,
                                                           int mu, int j, SU3& R,
                                                           const std::vector<SU3>& set,
-                                                          std::mt19937_64& rng);
+                                                          std::mt19937_64& rng, int epsilon_current);
 std::pair<std::pair<size_t, int>, int> lift_improved_fast_norev(const GaugeField& field,
                                                                 const GeometryCB& geo, size_t site,
                                                                 int mu, int j, SU3& R,

@@ -342,7 +342,7 @@ std::pair<std::pair<size_t, int>, int> mpi::ecmccb::lift_improved_fast_norev(
 // Optimized version of lift_improved
 std::pair<std::pair<size_t, int>, int> mpi::ecmccb::lift_improved_fast(
     const GaugeField& field, const GeometryCB& geo, size_t site, int mu, int j, SU3& R,
-    const std::vector<SU3>& set, std::mt19937_64& rng) {
+    const std::vector<SU3>& set, std::mt19937_64& rng, int epsilon_current) {
     std::array<std::pair<size_t, int>, 4>
         links_plaquette_j;  // We add the current link to get the plaquette
     links_plaquette_j[0] = std::make_pair(site, mu);
@@ -364,28 +364,19 @@ std::pair<std::pair<size_t, int>, int> mpi::ecmccb::lift_improved_fast(
         SU3 U01 = U0 * U1;
         SU3 U32 = U3 * U2;
         P[0] = U01 * U32.adjoint();
-        if (!geo.is_frozen(links_plaquette_j[1].first, links_plaquette_j[1].second))
-            P[1] = U1 * U32.adjoint() * U0;
-        if (!geo.is_frozen(links_plaquette_j[2].first, links_plaquette_j[2].second))
-            P[2] = U2 * U01.adjoint() * U3;
-        if (!geo.is_frozen(links_plaquette_j[3].first, links_plaquette_j[3].second))
-            P[3] = P[0].adjoint();
+        P[1] = U1 * U32.adjoint() * U0;
+        P[2] = U2 * U01.adjoint() * U3;
+        P[3] = P[0].adjoint();
     } else {                // Backward plaquette
         SU3 U21 = U2 * U1;  // 1 mult + adjoint
         SU3 T = U0 * U21.adjoint();
         P[0] = T * U3;
-        if (!geo.is_frozen(links_plaquette_j[1].first, links_plaquette_j[1].second))
-            P[1] = U1 * U0.adjoint() * U3.adjoint() * U2;
+        P[1] = U1 * U0.adjoint() * U3.adjoint() * U2;
         P[3] = U3 * T;
         P[2] = P[3].adjoint();
     }
     for (size_t i = 0; i < 4; i++) {
-        if (!geo.is_frozen(links_plaquette_j[i].first, links_plaquette_j[i].second)) {
-            // probas[i] = (lambda_3 * R.adjoint() * P[i] * R).trace().imag();
-            probas[i] = compute_ds(P[i], R);  // Less matmuls
-        } else {
-            probas[i] = 0.0;
-        }
+        probas[i] = compute_ds(P[i], R);  // Less matmuls
         sign_dS[i] = dsign(probas[i]);
         probas[i] = abs(probas[i]);
         abs_dS[i] = probas[i];
@@ -395,9 +386,14 @@ std::pair<std::pair<size_t, int>, int> mpi::ecmccb::lift_improved_fast(
     for (size_t i = 0; i < 4; i++) {
         probas[i] /= sum;
     }
-    size_t index_lift = selectVariable(probas, rng);
 
-    // Change R
+    size_t index_lift = selectVariable(probas, rng);
+    //If lift on frozen link : reflection
+    if (geo.is_frozen(links_plaquette_j[index_lift].first, links_plaquette_j[index_lift].second)){
+        return std::make_pair(links_plaquette_j[0], -epsilon_current);
+    }
+
+    // If not : change R and lift
     static std::uniform_real_distribution<double> unif01(0.0, 1.0);
     static std::uniform_int_distribution<size_t> set_index(0, set.size() - 1);
     SU3 R_new;
@@ -558,7 +554,7 @@ void mpi::ecmccb::sample(GaugeField& field, const GeometryCB& geo, const ECMCPar
             theta_parcouru_refresh_R += theta_reject;
 
             auto l =
-                lift_improved_fast(field, geo, site_current, mu_current, j, R, set_matrices, rng);
+                lift_improved_fast(field, geo, site_current, mu_current, j, R, set_matrices, rng, epsilon_current);
             site_current = l.first.first;
             mu_current = l.first.second;
             epsilon_current = l.second;
@@ -715,7 +711,7 @@ void mpi::ecmccb::sample_persistant(LocalChainState& state, Distributions& d, Ga
             theta_parcouru_refresh_R += theta_reject;
 
             auto l =
-                lift_improved_fast(field, geo, site_current, mu_current, j, R, set_matrices, rng);
+                lift_improved_fast(field, geo, site_current, mu_current, j, R, set_matrices, rng, epsilon_current);
             set_counter++;
             lift_counter++;
             rev_counter += (l.first.first == site_current and l.first.second == mu_current) ? 1 : 0;
