@@ -467,6 +467,10 @@ void mpi::ecmccb::sample(GaugeField& field, const GeometryCB& geo, const ECMCPar
     // Initialisation de la position de la chaine
     size_t site_current = random_site(geo, rng);
     int mu_current = random_dir(rng);
+    while (geo.is_frozen(site_current, mu_current)) {
+        site_current = random_site(geo, rng);
+        mu_current = random_dir(rng);
+    }
     int epsilon_current = 2 * random_eps(rng) - 1;
     SU3 R = random_su3(rng);
 
@@ -530,6 +534,10 @@ void mpi::ecmccb::sample(GaugeField& field, const GeometryCB& geo, const ECMCPar
 
             site_current = random_site(geo, rng);
             mu_current = random_dir(rng);
+            while (geo.is_frozen(site_current, mu_current)) {
+                site_current = random_site(geo, rng);
+                mu_current = random_dir(rng);
+            }
             epsilon_current = 2 * random_eps(rng) - 1;
         } else if (theta_step == dist_to_refresh_R) {
             // --- EVENT: REFRESH R ---
@@ -574,6 +582,10 @@ void mpi::ecmccb::sample_persistant(LocalChainState& state, Distributions& d, Ga
     if (!state.initialized) {
         state.site = random_site(geo, rng);
         state.mu = d.random_dir(rng);
+        while (geo.is_frozen(state.site, state.mu)) {
+            state.site = random_site(geo, rng);
+            state.mu = d.random_dir(rng);
+        }
         state.epsilon = 2 * d.random_eps(rng) - 1;
         state.R = random_su3(rng);
         state.theta_refresh_site =
@@ -589,6 +601,10 @@ void mpi::ecmccb::sample_persistant(LocalChainState& state, Distributions& d, Ga
     // Initalisation de l'état de la chaîne (non persistant)
     size_t site_current = random_site(geo, rng);
     int mu_current = d.random_dir(rng);
+    while (geo.is_frozen(site_current, mu_current)) {
+        site_current = random_site(geo, rng);
+        mu_current = d.random_dir(rng);
+    }
     int epsilon_current = 2 * d.random_eps(rng) - 1;
     SU3 R = random_su3(rng);
     size_t set_counter = state.set_counter;
@@ -673,6 +689,10 @@ void mpi::ecmccb::sample_persistant(LocalChainState& state, Distributions& d, Ga
 
             site_current = random_site(geo, rng);
             mu_current = d.random_dir(rng);
+            while (geo.is_frozen(site_current, mu_current)) {
+                site_current = random_site(geo, rng);
+                mu_current = d.random_dir(rng);
+            }
             epsilon_current = 2 * d.random_eps(rng) - 1;
         } else if (theta_step == dist_to_refresh_R) {
             // --- EVENT: REFRESH R ---
@@ -721,6 +741,10 @@ void mpi::ecmccb::sample_persistant_norev(LocalChainState& state, Distributions&
     if (!state.initialized) {
         state.site = random_site(geo, rng);
         state.mu = d.random_dir(rng);
+        while (geo.is_frozen(state.site, state.mu)) {
+            state.site = random_site(geo, rng);
+            state.mu = d.random_dir(rng);
+        }
         state.epsilon = 2 * d.random_eps(rng) - 1;
         state.R = random_su3(rng);
         state.theta_refresh_site =
@@ -809,6 +833,10 @@ void mpi::ecmccb::sample_persistant_norev(LocalChainState& state, Distributions&
 
             site_current = random_site(geo, rng);
             mu_current = d.random_dir(rng);
+            while (geo.is_frozen(site_current, mu_current)) {
+                site_current = random_site(geo, rng);
+                mu_current = d.random_dir(rng);
+            }
             epsilon_current = 2 * d.random_eps(rng) - 1;
         } else if (theta_step == dist_to_refresh_R) {
             // --- EVENT: REFRESH R ---
