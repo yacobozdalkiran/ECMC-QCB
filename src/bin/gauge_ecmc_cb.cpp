@@ -121,6 +121,8 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
             }
             // Random shift
             mpi::shift::random_shift(field, geo, halo_shift, topo, rng[0]);
+            // New chain
+            state.initialized = false;
             for (int j = 0; j < N_switch_eo; j++) {
                 // Even parity :
                 if (topo.rank == 0) {
@@ -175,6 +177,8 @@ void generate_ecmc_cb(const RunParamsECB& rp, bool existing) {
 
         // Random shift
         mpi::shift::random_shift(field, geo, halo_shift, topo, rng[0]);
+            // New chain
+            state.initialized = false;
 
         for (int j = 0; j < N_switch_eo; j++) {
             // Even parity :
