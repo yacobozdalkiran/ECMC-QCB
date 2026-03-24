@@ -175,9 +175,11 @@ std::vector<double> mpi::observables::topo_charge_flowed(GaugeField& field, cons
                       << ", Q = " << io::format_double(qe.first, p)
                       << ", t²E = " << io::format_double(t * t * qe.second, p) << "\n";
         }
-        for (int rk_steps = 0; rk_steps < N_rk_steps; rk_steps++) {
-            gf.rk3_step(topo);
-            t += gf.epsilon;
+        if (steps != N_steps_gf - 1) {
+            for (int rk_steps = 0; rk_steps < N_rk_steps; rk_steps++) {
+                gf.rk3_step(topo);
+                t += gf.epsilon;
+            }
         }
     }
     return tQE;
